@@ -1,3 +1,7 @@
+window.polytrackModConfiguration = {
+    modName: "MisoTweaks",
+    author: "missonance",
+};
 ( () => {
 
 function _applyItalicsSetting(enabled) {
@@ -7869,6 +7873,7 @@ function _applyItalicsSetting(enabled) {
                                 t.needsUpdate = n != t.transparent,
                                 t.transparent = n
                             }
+                            t.castShadow = e > 0;
                         }
                     }
                     ))
@@ -24096,7 +24101,10 @@ function _applyItalicsSetting(enabled) {
                 e[e.SpectatorMoveLeft = 29] = "SpectatorMoveLeft",
                 e[e.SpectatorSpeedModifier = 30] = "SpectatorSpeedModifier",
                 e[e.PreviewStepForward = 31] = "PreviewStepForward",
-                e[e.PreviewStepBack = 32] = "PreviewStepBack"
+                e[e.PreviewStepBack = 32] = "PreviewStepBack",
+                e[e.EditorClearTrail = 33] = "EditorClearTrail",
+                e[e.EditorToggleCoords = 34] = "EditorToggleCoords",
+                e[e.ToggleGhosts = 35] = "ToggleGhosts"
             }(i || (i = {}));
             const r = i
         }
@@ -42638,7 +42646,7 @@ function _applyItalicsSetting(enabled) {
                                 null != C.get(this, ca, "f") || C.get(this, Pa, "f") || (C.set(this, $r, !C.get(this, $r, "f"), "f"),
                                 C.get(this, ea, "f").isVisible = C.get(this, $r, "f")),
                                 e.preventDefault();
-                            else if (e.key === 'H' || e.key === 'h') {
+                            else if (d.checkKeyBinding(e, KeyBind.ToggleGhosts)) {
                                 C._ghostsHidden = !C._ghostsHidden;
                                 e.preventDefault();
                             } else if (d.checkKeyBinding(e, KeyBind.Pause)) {
@@ -49172,6 +49180,7 @@ function _applyItalicsSetting(enabled) {
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Checkpoint reset"), KeyBind.VehicleCheckpointReset),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Start reset"), KeyBind.VehicleStartReset),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Cockpit camera"), KeyBind.VehicleCockpitCamera),
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle ghosts"), KeyBind.ToggleGhosts),
             C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Editor")),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Rotate part"), KeyBind.EditorRotatePart),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Height modifier"), KeyBind.EditorHeightModifier),
@@ -49188,6 +49197,8 @@ function _applyItalicsSetting(enabled) {
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Move up"), KeyBind.EditorMoveUp),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Test track"), KeyBind.EditorTest),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Pick part"), KeyBind.EditorPick),
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Clear trail"), KeyBind.EditorClearTrail),
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle coordinates"), KeyBind.EditorToggleCoords),
             C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Spectator")),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Move forwards"), KeyBind.SpectatorMoveForwards),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Move backwards"), KeyBind.SpectatorMoveBackwards),
@@ -52007,9 +52018,9 @@ function _applyItalicsSetting(enabled) {
             t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
-            n.href = "https://opengameart.org/content/sci-fi-theme-1",
+            n.href = "https://deltarune.com/",
             n.target = "_blank",
-            n.textContent = 'OpenGameArt.org "Sci-fi Theme" by Maou (CC-BY 4.0)',
+            n.textContent = 'deltarune.com "My Castle Town" by Toby Fox',
             C.get(this, Mc, "f").appendChild(n)
         }
         ,
@@ -55786,7 +55797,7 @@ function _applyItalicsSetting(enabled) {
                 return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"]])
             }
             defaultKeyBindings() {
-                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]]])
+                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]]])
             }
             getSettings() {
                 return Array.from(C.get(this, Cu, "f"))
