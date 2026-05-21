@@ -1477,6 +1477,18 @@
         confirmExit = function(t) {
             const e = () => {
                 get(this, editor_transitionManager, "f").trigger(( () => {
+                    window.__editorTrailData = null;
+                    if (this.__editorTrailGroup) {
+                        get(this, editor_renderer, "f").scene.remove(this.__editorTrailGroup);
+                        this.__editorTrailGroup.traverse(obj => {
+                            if (obj.geometry) obj.geometry.dispose();
+                            if (obj.material) {
+                                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                                for (const m of mats) m.dispose();
+                            }
+                        });
+                        this.__editorTrailGroup = null;
+                    }
                     set(this, editor_isSaved, !0, "f"),
                     get(this, Ft, "m", setTrackName).call(this, null),
                     t(),
@@ -2317,6 +2329,13 @@
                             this.__editorTrailClearBtn = null;
                         }
                     })(),
+                    t.preventDefault()),
+                    f.checkKeyBinding(t, KeyBind.EditorToggleCoords) && ((() => {
+                        this.__editorCoordHidden = !this.__editorCoordHidden;
+                        if (this.__editorCoordEl) {
+                            this.__editorCoordEl.style.display = this.__editorCoordHidden ? "none" : "";
+                        }
+                    })(),
                     t.preventDefault())))
                 }
                 ), "f")),
@@ -3074,7 +3093,15 @@
                     set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight)
                 }
                 )), "f"),
-                get(this, editor_heightSelectorUI, "f").refresh(get(this, Ft, "a", getCurrentHeight))
+                get(this, editor_heightSelectorUI, "f").refresh(get(this, Ft, "a", getCurrentHeight)),
+                
+                (() => {
+                    const coordEl = document.createElement("div");
+                    coordEl.style.cssText = "position:absolute;bottom:0;left:50%;transform:translateX(-50%);padding:0 10px;background-color:var(--surface-transparent-color);color:var(--text-color);font-size:26px;line-height:40px;pointer-events:none;white-space:nowrap;opacity:0;transition:opacity 0.15s;z-index:10;text-shadow:0 0 5px #000;";
+                    get(this, editor_containerElement, "f").appendChild(coordEl);
+                    this.__editorCoordEl = coordEl;
+                    this.__editorCoordHidden = false;
+                })()
             }
             dispose() {
                 set(this, editor_isActive, !1, "f"),
@@ -3310,7 +3337,9 @@
                         });
                         this.__editorTrailGroup = null;
                     }
+                    window.__editorTrailData = null;
                 })(),
+                (() => { if (this.__editorCoordEl) this.__editorCoordEl.style.opacity = "0"; })(),
                 get(this, editor_previewGroup, "f").visible = !1,
                 set(this, editor_isCopyMode, !1, "f"),
                 set(this, editor_isCutMode, !1, "f"),
@@ -3351,9 +3380,16 @@
                           , e = new THREE.Vector3(get(this, editor_cursorGridPos, "f").x * Track.A.partSize,get(this, editor_cursorGridPos, "f").y * Track.A.partSize,get(this, editor_cursorGridPos, "f").z * Track.A.partSize);
                         get(this, editor_previewGroup, "f").position.copy(e),
                         get(this, editor_previewGroup, "f").quaternion.copy(t),
-                        get(this, editor_previewGroup, "f").visible = !0
-                    } else
+                        get(this, editor_previewGroup, "f").visible = !0;
+                        if (this.__editorCoordEl && !this.__editorCoordHidden) {
+                            const p = get(this, editor_cursorGridPos, "f");
+                            this.__editorCoordEl.textContent = `X\u2009${p.x}  Y\u2009${p.y}  Z\u2009${p.z}`;
+                            this.__editorCoordEl.style.opacity = "1";
+                        }
+                    } else {
                         get(this, editor_previewGroup, "f").visible = !1;
+                        if (this.__editorCoordEl) this.__editorCoordEl.style.opacity = "0";
+                    }
                     const t = get(this, editor_cursorGridPos, "f");
                     if (null != t && null != get(this, editor_activePlacement, "f")) {
                         if (null == get(this, editor_lastOverlapCheckPos, "f") || get(this, editor_lastOverlapCheckPos, "f").x != t.x || get(this, editor_lastOverlapCheckPos, "f").y != t.y || get(this, editor_lastOverlapCheckPos, "f").z != t.z) {
