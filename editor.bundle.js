@@ -2303,7 +2303,7 @@
                     t.preventDefault()),
                     f.checkKeyBinding(t, KeyBind.EditorRotateViewRight) && (set(this, editor_keyYawRight, !0, "f"),
                     t.preventDefault()),
-                    f.checkKeyBinding(t, KeyBind.EditorMoveDown) && (set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight),
+                    f.checkKeyBinding(t, KeyBind.EditorMoveDown) && (set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight),
                     t.preventDefault()),
                     f.checkKeyBinding(t, KeyBind.EditorMoveUp) && (set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight),
                     t.preventDefault()),
@@ -2354,7 +2354,7 @@
                 }
                 ), "f")),
                 window.addEventListener("wheel", set(this, editor_onWheel, (t => {
-                    get(this, editor_isHeightModifierHeld, "f") && get(this, editor_isActive, "f") && (t.deltaY > 0 ? set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight) : t.deltaY < 0 && set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight))
+                    get(this, editor_isHeightModifierHeld, "f") && get(this, editor_isActive, "f") && (t.deltaY > 0 ? set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight) : t.deltaY < 0 && set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight))
                 }
                 ), "f")),
                 window.addEventListener("beforeunload", set(this, editor_onBeforeUnload, (t => !get(this, editor_isSaved, "f") && (t.preventDefault(),
@@ -3090,7 +3090,7 @@
                 }
                 ),( () => {
                     get(this, editor_audioManager, "f").playUIClick(),
-                    set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight)
+                    set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight)
                 }
                 )), "f"),
                 get(this, editor_heightSelectorUI, "f").refresh(get(this, Ft, "a", getCurrentHeight)),

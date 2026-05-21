@@ -7487,6 +7487,9 @@ function _applyItalicsSetting(enabled) {
                     l.set(this, L, null, "f"),
                     l.set(this, U, null, "f")
                 }
+                setVisible(e) {
+                    l.get(this, _, "f").visible = e
+                }
                 spawn(e, t, n, i) {
                     var r, a;
                     const s = l.get(this, L, "f")
@@ -7876,7 +7879,10 @@ function _applyItalicsSetting(enabled) {
                             t.castShadow = e > 0;
                         }
                     }
-                    ))
+                    ));
+                    const visible = e > 0;
+                    for (const t of l.get(this, Le, "f"))
+                        t.setVisible(visible)
                 }
                 setVisible(e) {
                     l.get(this, ve, "f").visible = e
@@ -29541,8 +29547,6 @@ function _applyItalicsSetting(enabled) {
                     m.get(this, l, "f").push(y);
                     p.configuration.tiles.rotated(r, a).forEach(( (i, r, a) => {
                         const s = (e + i).toString() + "|" + (t + r).toString() + "|" + (n + a).toString();
-                        if (t + r < 0)
-                            throw new Error("Track part below ground");
                         {
                             const e = m.get(this, c, "f").get(s);
                             null == e ? m.get(this, c, "f").set(s, [y]) : e.push(y)
@@ -41904,25 +41908,6 @@ function _applyItalicsSetting(enabled) {
                 C.get(this, ya, "f").reset = !1,
                 C.set(this, va, s.getControls().up || s.getControls().down, "f"),
                 C.get(this, va, "f") && C.set(this, ba, new Date, "f");
-                
-                if (this.__editorTrail && this.__editorTrail.points.length > 0) {
-                    const _pos = C.get(this, wa, "f").getPosition();
-                    const _q   = C.get(this, wa, "f").getQuaternion();
-                    window.__editorTrailData = {
-                        points:    this.__editorTrail.points.slice(),
-                        quats:     this.__editorTrail.quats.slice(),
-                        snapshots: this.__editorTrail.snapshots.slice(),
-                        carStyle:  C.get(this, wa, "f").getCarStyle(),
-                        finalPos:  { x: _pos.x, y: _pos.y + 0.25, z: _pos.z },
-                        finalQuat: { x: _q.x, y: _q.y, z: _q.z, w: _q.w }
-                    };
-                }
-                if (this.__editorTrail) {
-                    this.__editorTrail.points = [];
-                    this.__editorTrail.quats = [];
-                    this.__editorTrail.snapshots = [];
-                    this.__editorTrail.frameCounter = 0;
-                }
             }
             )),
             s.addCheckpointCallback((e => {
@@ -52013,9 +51998,9 @@ function _applyItalicsSetting(enabled) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://www.kodub.com",
+            t.href = "https://github.com/missonance/misotweaks",
             t.target = "_blank",
-            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
+            t.textContent = "© 2026 missonance.github.io - " + e.get("Version") + " 0.1.2",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
