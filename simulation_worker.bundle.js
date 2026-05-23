@@ -13049,9 +13049,22 @@
                     [Symbol.toStringTag]: "Math"
                 }
             }();
+            let ppvGameSpeed = 1;
             const e = [];
             function i(i) {
                 const s = i.data;
+                if (s.messageType === "ppvSetSpeed") {
+                    ppvGameSpeed = s.speed;
+                    return;
+                }
+                if (s.messageType === "ppvStepFrames") {
+                    const prevSpeed = ppvGameSpeed;
+                    ppvGameSpeed = 0;
+                    l += 0.001 * (s.frames || 1);
+                    ppvGameSpeed = prevSpeed;
+                    h();
+                    return;
+                }
                 switch (s.messageType) {
                 case Ki.Init:
                     !function(e) {
@@ -13311,7 +13324,7 @@
               , l = 0;
             function h() {
                 const t = performance.now();
-                l += Math.max(0, Math.min(.1, (t - o) / 1e3)),
+                l += Math.max(0, Math.min(.1, (t - o) / 1e3)) * ppvGameSpeed,
                 o = t;
                 const i = [];
                 for (; l > .001; ) {

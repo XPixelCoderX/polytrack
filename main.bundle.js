@@ -1740,7 +1740,7 @@ function _applyItalicsSetting(enabled) {
                     };
                     if (r.get(this, h, "f").postMessage(t),
                     !r.get(this, f, "f").delete(e))
-                        throw new Error("Deleting non-existant car")
+                        return
                 }
                 startCar(e, t) {
                     const n = {
@@ -51998,9 +51998,9 @@ function _applyItalicsSetting(enabled) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://github.com/missonance/misotweaks",
+            t.href = "https://www.kodub.com",
             t.target = "_blank",
-            t.textContent = "© 2026 missonance.github.io - " + e.get("Version") + " 0.1.2",
+            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
@@ -52202,7 +52202,7 @@ function _applyItalicsSetting(enabled) {
                 C.get(this, vc, "m", Zc).call(this)
             }
             dispose() {
-                C.get(this, Sc, "f").removeChild(C.get(this, kc, "f")),
+                C.get(this, Sc, "f").contains(C.get(this, kc, "f")) && C.get(this, Sc, "f").removeChild(C.get(this, kc, "f")),
                 C.get(this, Rc, "f").dispose(),
                 C.get(this, Pc, "f")?.dispose(),
                 C.set(this, Pc, null, "f"),
@@ -57319,3 +57319,24 @@ function _applyItalicsSetting(enabled) {
     )()
 }
 )();
+
+(function() {
+  var currentSpeed = 1;
+
+  var OriginalWorker = window.Worker;
+  window.__ppvWorkers = [];
+  window.Worker = function(url, opts) {
+    var w = new OriginalWorker(url, opts);
+    window.__ppvWorkers.push(w);
+    setTimeout(function() { w.postMessage({ messageType: "ppvSetSpeed", speed: currentSpeed }); }, 500);
+    return w;
+  };
+  window.Worker.prototype = OriginalWorker.prototype;
+
+  window.__setSimSpeed = function(speed) {
+    currentSpeed = speed;
+    window.__ppvWorkers.forEach(function(w) {
+      w.postMessage({ messageType: "ppvSetSpeed", speed: currentSpeed });
+    });
+  };
+})();

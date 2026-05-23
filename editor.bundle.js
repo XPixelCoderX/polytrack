@@ -1040,6 +1040,109 @@
                     localStorage.setItem("editorTrailSnapshotEvery", _snapInput.value);
                 })),
                 _snapDiv.appendChild(_snapInput);
+                const _autoSaveDiv = document.createElement("div");
+                _autoSaveDiv.className = "setting",
+                f.appendChild(_autoSaveDiv);
+                const _autoSaveLabel = document.createElement("label");
+                _autoSaveLabel.className = "title";
+                _autoSaveLabel.textContent = "Auto-save";
+                _autoSaveDiv.appendChild(_autoSaveLabel);
+                const _autoSaveRow = document.createElement("div");
+                _autoSaveRow.style.cssText = "display:flex;align-items:center;gap:16px;margin-top:10px;";
+                const _autoSaveToggle = document.createElement("button");
+                const _autoSaveOn = localStorage.getItem("editorAutoSave") === "1";
+                _autoSaveToggle.className = "button";
+                _autoSaveToggle.style.cssText = "font-size:24px;padding:8px 24px;";
+                _autoSaveToggle.textContent = _autoSaveOn ? "On" : "Off";
+                _autoSaveToggle.addEventListener("click", () => {
+                    const now = localStorage.getItem("editorAutoSave") === "1";
+                    localStorage.setItem("editorAutoSave", now ? "0" : "1");
+                    _autoSaveToggle.textContent = now ? "Off" : "On";
+                });
+                const _autoSaveDesc = document.createElement("span");
+                _autoSaveDesc.style.cssText = "font-size:22px;color:var(--text-color);opacity:0.6;";
+                _autoSaveDesc.textContent = "Saves 1 minute after last edit";
+                _autoSaveRow.appendChild(_autoSaveToggle);
+                _autoSaveRow.appendChild(_autoSaveDesc);
+                _autoSaveDiv.appendChild(_autoSaveRow);
+                const _speedDiv = document.createElement("div");
+                _speedDiv.className = "setting",
+                f.appendChild(_speedDiv);
+                const _speedLabel = document.createElement("label");
+                _speedLabel.className = "title";
+                _speedLabel.append(document.createTextNode("Speed boost"));
+                _speedDiv.appendChild(_speedLabel);
+                const _speedSec = parseFloat(localStorage.getItem("editorSpeedBoostUntil") || "0");
+                const _speedMult = Math.min(30, parseFloat(localStorage.getItem("editorSpeedBoostMult") || "25"));
+                const _speedRow1 = document.createElement("div");
+                _speedRow1.style.cssText = "display:flex;align-items:center;gap:10px;margin-top:10px;";
+                const _speedSecLabel = document.createElement("span");
+                _speedSecLabel.style.cssText = "font-size:24px;color:var(--text-color);white-space:nowrap;min-width:120px;";
+                _speedSecLabel.textContent = "Until: " + (isNaN(_speedSec) || _speedSec <= 0 ? "Off" : _speedSec.toFixed(1) + "s");
+                const _speedSecRange = document.createElement("input");
+                _speedSecRange.type = "range";
+                _speedSecRange.min = "0";
+                _speedSecRange.max = "120";
+                _speedSecRange.step = "0.5";
+                _speedSecRange.value = String(isNaN(_speedSec) ? 0 : _speedSec);
+                _speedSecRange.style.cssText = "flex:1;";
+                const _speedSecNum = document.createElement("input");
+                _speedSecNum.type = "number";
+                _speedSecNum.min = "0";
+                _speedSecNum.step = "0.5";
+                _speedSecNum.value = String(isNaN(_speedSec) ? 0 : _speedSec);
+                _speedSecNum.style.cssText = "width:80px;font-size:24px;background:var(--surface-secondary-color);color:var(--text-color);border:none;padding:4px 8px;";
+                _speedSecRange.addEventListener("input", () => {
+                    const v = parseFloat(_speedSecRange.value);
+                    _speedSecNum.value = String(v);
+                    _speedSecLabel.textContent = "Until: " + (v <= 0 ? "Off" : v.toFixed(1) + "s");
+                    localStorage.setItem("editorSpeedBoostUntil", String(v));
+                });
+                _speedSecNum.addEventListener("input", () => {
+                    const v = Math.max(0, parseFloat(_speedSecNum.value) || 0);
+                    _speedSecRange.value = String(Math.min(v, 120));
+                    _speedSecLabel.textContent = "Until: " + (v <= 0 ? "Off" : v.toFixed(1) + "s");
+                    localStorage.setItem("editorSpeedBoostUntil", String(v));
+                });
+                _speedRow1.appendChild(_speedSecLabel);
+                _speedRow1.appendChild(_speedSecRange);
+                _speedRow1.appendChild(_speedSecNum);
+                _speedDiv.appendChild(_speedRow1);
+                const _speedRow2 = document.createElement("div");
+                _speedRow2.style.cssText = "display:flex;align-items:center;gap:10px;margin-top:10px;";
+                const _speedMultLabel = document.createElement("span");
+                _speedMultLabel.style.cssText = "font-size:24px;color:var(--text-color);white-space:nowrap;min-width:120px;";
+                _speedMultLabel.textContent = "Speed: " + (isNaN(_speedMult) ? 25 : _speedMult) + "x";
+                const _speedMultRange = document.createElement("input");
+                _speedMultRange.type = "range";
+                _speedMultRange.min = "1";
+                _speedMultRange.max = "30";
+                _speedMultRange.step = "1";
+                _speedMultRange.value = String(isNaN(_speedMult) ? 25 : _speedMult);
+                _speedMultRange.style.cssText = "flex:1;";
+                const _speedMultNum = document.createElement("input");
+                _speedMultNum.type = "number";
+                _speedMultNum.min = "1";
+                _speedMultNum.max = "30";
+                _speedMultNum.step = "1";
+                _speedMultNum.value = String(isNaN(_speedMult) ? 25 : _speedMult);
+                _speedMultNum.style.cssText = "width:80px;font-size:24px;background:var(--surface-secondary-color);color:var(--text-color);border:none;padding:4px 8px;";
+                _speedMultRange.addEventListener("input", () => {
+                    const v = parseInt(_speedMultRange.value);
+                    _speedMultNum.value = String(v);
+                    _speedMultLabel.textContent = "Speed: " + v + "x";
+                    localStorage.setItem("editorSpeedBoostMult", String(v));
+                });
+                _speedMultNum.addEventListener("input", () => {
+                    const v = Math.min(30, Math.max(1, parseInt(_speedMultNum.value) || 1));
+                    _speedMultRange.value = String(v);
+                    _speedMultLabel.textContent = "Speed: " + v + "x";
+                    localStorage.setItem("editorSpeedBoostMult", String(v));
+                });
+                _speedRow2.appendChild(_speedMultLabel);
+                _speedRow2.appendChild(_speedMultRange);
+                _speedRow2.appendChild(_speedMultNum);
+                _speedDiv.appendChild(_speedRow2);
                 const P = document.createElement("div");
                 P.className = "button-wrapper",
                 d.appendChild(P);
@@ -1511,7 +1614,19 @@
             if (null != get(this, editor_track, "f").getStartTransform()) {
                 if (null == get(this, editor_testCallback, "f"))
                     throw new Error("Test callback is null");
-                get(this, editor_testCallback, "f").call(this)
+                get(this, editor_testCallback, "f").call(this);
+                const _boostSec = parseFloat(localStorage.getItem("editorSpeedBoostUntil") || "0");
+                const _boostMult = Math.min(30, Math.max(1, parseFloat(localStorage.getItem("editorSpeedBoostMult") || "25")));
+                if (_boostSec > 0) {
+                    setTimeout(function() {
+                        if (typeof window.__setSimSpeed === "function") {
+                            window.__setSimSpeed(_boostMult);
+                            setTimeout(function() {
+                                if (typeof window.__setSimSpeed === "function") window.__setSimSpeed(1);
+                            }, _boostSec * 1000 / _boostMult);
+                        }
+                    }, 800);
+                }
             } else
                 get(this, Ft, "m", showToast).call(this, get(this, editor_localization, "f").get("Starting point is missing!"), !1)
         }
@@ -1938,7 +2053,21 @@
             get(this, editor_checkpointOrderUI, "f").setFromExistingCheckpoints(get(this, editor_track, "f")),
             set(this, editor_lastOverlapCheckPos, null, "f"),
             set(this, editor_lastModified, new Date, "f"),
-            set(this, editor_isSaved, !1, "f")
+            set(this, editor_isSaved, !1, "f");
+            if (localStorage.getItem("editorAutoSave") === "1" && null != get(this, editor_trackName, "f")) {
+                clearTimeout(this._autoSaveTimer);
+                const _self = this;
+                this._autoSaveTimer = setTimeout(function() {
+                    const name = get(_self, editor_trackName, "f");
+                    if (null == name) return;
+                    const meta = { name, author: get(_self, editor_trackAuthor, "f"), lastModified: get(_self, editor_lastModified, "f") };
+                    const data = get(_self, editor_track, "f").getTrackData();
+                    if (get(_self, editor_customTrackManager, "f").saveCustomTrack(meta, data)) {
+                        set(_self, editor_isSaved, !0, "f");
+                        get(_self, Ft, "m", showToast).call(_self, "Auto-saved", !0);
+                    }
+                }, 60000);
+            }
         }
         ,
         playEditSound = function() {
@@ -2303,7 +2432,7 @@
                     t.preventDefault()),
                     f.checkKeyBinding(t, KeyBind.EditorRotateViewRight) && (set(this, editor_keyYawRight, !0, "f"),
                     t.preventDefault()),
-                    f.checkKeyBinding(t, KeyBind.EditorMoveDown) && (set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight),
+                    f.checkKeyBinding(t, KeyBind.EditorMoveDown) && (set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight),
                     t.preventDefault()),
                     f.checkKeyBinding(t, KeyBind.EditorMoveUp) && (set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight),
                     t.preventDefault()),
@@ -2354,7 +2483,7 @@
                 }
                 ), "f")),
                 window.addEventListener("wheel", set(this, editor_onWheel, (t => {
-                    get(this, editor_isHeightModifierHeld, "f") && get(this, editor_isActive, "f") && (t.deltaY > 0 ? set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight) : t.deltaY < 0 && set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight))
+                    get(this, editor_isHeightModifierHeld, "f") && get(this, editor_isActive, "f") && (t.deltaY > 0 ? set(this, Ft, get(this, Ft, "a", getCurrentHeight) + 1, "a", setHeight) : t.deltaY < 0 && set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight))
                 }
                 ), "f")),
                 window.addEventListener("beforeunload", set(this, editor_onBeforeUnload, (t => !get(this, editor_isSaved, "f") && (t.preventDefault(),
@@ -2736,7 +2865,7 @@
                     )))
                 }
                 )),
-                b.appendChild(y),
+                void(y),
                 set(this, editor_exportUI, new ct.A(u,get(this, editor_localization, "f"),get(this, editor_audioManager, "f"),get(this, editor_trackStorage, "f"),get(this, editor_customTrackManager, "f"),get(this, editor_userProfileManager, "f"),get(this, editor_dialogManager, "f"),get(this, editor_networkManager, "f"),"cancel",!0,( () => {
                     get(this, editor_containerElement, "f").className = "editor-ui",
                     get(this, editor_exportUI, "f").hide()
@@ -2960,7 +3089,7 @@
                     )), "f")
                 }
                 )),
-                b.appendChild(C);
+                void(C);
                 const W = document.createElement("div");
                 W.className = "track-settings-container",
                 get(this, editor_topBar, "f").appendChild(W),
@@ -3090,7 +3219,7 @@
                 }
                 ),( () => {
                     get(this, editor_audioManager, "f").playUIClick(),
-                    set(this, Ft, get(this, Ft, "a", getCurrentHeight) - 1, "a", setHeight)
+                    set(this, Ft, Math.max(0, get(this, Ft, "a", getCurrentHeight) - 1), "a", setHeight)
                 }
                 )), "f"),
                 get(this, editor_heightSelectorUI, "f").refresh(get(this, Ft, "a", getCurrentHeight)),
