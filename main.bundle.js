@@ -51998,9 +51998,9 @@ function _applyItalicsSetting(enabled) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://www.kodub.com",
+            t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
+            t.textContent = "© 2026 https://github.com/missonance - " + e.get("Version") + " 0.2.0",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
