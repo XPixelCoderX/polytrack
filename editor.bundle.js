@@ -2199,7 +2199,9 @@
         }
         ,
         isKeyboardInputActive = function() {
-            return !!get(this, editor_isActive, "f") && (!get(this, editor_isTyping, "f") && (!get(this, editor_dialogManager, "f").isOpen && null == get(this, editor_helpUI, "f") && !get(this, editor_exportUI, "f").isOpen && null == get(this, editor_trackSettingsUI, "f") && null == get(this, editor_activeModal, "f")))
+            const focused = document.activeElement;
+            const isTypingInInput = focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable);
+            return !!get(this, editor_isActive, "f") && (!get(this, editor_isTyping, "f") && !isTypingInInput && (!get(this, editor_dialogManager, "f").isOpen && null == get(this, editor_helpUI, "f") && !get(this, editor_exportUI, "f").isOpen && null == get(this, editor_trackSettingsUI, "f") && null == get(this, editor_activeModal, "f")))
         }
         ;
         const TrackEditor = class {
@@ -3371,71 +3373,21 @@
                     }
 
                     
-                    const CarClass = THREE.FFZ;
-                    if (CarClass && CarClass.models) {
-                        const snapshotsToRender = (data.snapshots && data.snapshots.length > 0)
-                            ? data.snapshots
-                            : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
-                        
-                        if (data.finalPos && data.snapshots && data.snapshots.length > 0) {
-                            snapshotsToRender.push({ pos: data.finalPos, quat: data.finalQuat });
-                        }
-                        snapshotsToRender.forEach((snap, idx) => {
-                            const isLast = idx === snapshotsToRender.length - 1;
-                            const ageFade = isLast ? 1.0 : 0.25 + 0.5 * (idx / Math.max(snapshotsToRender.length - 1, 1));
-                            const carGroup = new THREE.Group();
-                            const chassis = CarClass.models.chassis.clone();
-                            chassis.traverse(obj => {
-                                if (!obj.isMesh) return;
-                                obj.material = obj.material.clone();
-                                obj.material.transparent = true;
-                                obj.material.opacity = 0.55 * ageFade;
-                                obj.material.depthTest = false;
-                                obj.renderOrder = 999;
-                            });
-                            carGroup.add(chassis);
-                            const suspension = CarClass.models.suspension.clone();
-                            suspension.traverse(obj => {
-                                if (!obj.isMesh) return;
-                                obj.material = obj.material.clone();
-                                obj.material.transparent = true;
-                                obj.material.opacity = 0.45 * ageFade;
-                                obj.material.depthTest = false;
-                                obj.renderOrder = 999;
-                            });
-                            carGroup.add(suspension);
-                            carGroup.traverse(obj => {
-                                if (!obj.isMesh) return;
-                                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                                for (const mat of mats) {
-                                    mat.color.set(0x00ff44);
-                                }
-                            });
-                            carGroup.position.set(snap.pos.x, snap.pos.y, snap.pos.z);
-                            if (snap.quat) {
-                                carGroup.quaternion.set(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w);
-                            }
-                            carGroup.frustumCulled = false;
-                            group.add(carGroup);
-                        });
-                    } else {
-                        
-                        const snapshotsToRender = (data.snapshots && data.snapshots.length > 0)
-                            ? [...data.snapshots, data.finalPos ? { pos: data.finalPos, quat: data.finalQuat } : null].filter(Boolean)
-                            : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
-                        snapshotsToRender.forEach((snap, idx) => {
-                            const isLast = idx === snapshotsToRender.length - 1;
-                            const opacity = isLast ? 0.6 : 0.2 + 0.3 * (idx / Math.max(snapshotsToRender.length - 1, 1));
-                            const carGeo = new THREE.BoxGeometry(1.8, 0.7, 3.5);
-                            const carMat = new THREE.MeshBasicMaterial({ color: 0x00ff44, transparent: true, opacity, depthTest: false });
-                            const carMesh = new THREE.Mesh(carGeo, carMat);
-                            carMesh.position.set(snap.pos.x, snap.pos.y, snap.pos.z);
-                            if (snap.quat) carMesh.quaternion.set(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w);
-                            carMesh.renderOrder = 999;
-                            carMesh.frustumCulled = false;
-                            group.add(carMesh);
-                        });
-                    }
+                    const snapshotsToRender = (data.snapshots && data.snapshots.length > 0)
+                        ? [...data.snapshots, data.finalPos ? { pos: data.finalPos, quat: data.finalQuat } : null].filter(Boolean)
+                        : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
+                    snapshotsToRender.forEach((snap, idx) => {
+                        const isLast = idx === snapshotsToRender.length - 1;
+                        const opacity = isLast ? 0.6 : 0.2 + 0.3 * (idx / Math.max(snapshotsToRender.length - 1, 1));
+                        const carGeo = new THREE.BoxGeometry(1.8, 0.7, 3.5);
+                        const carMat = new THREE.MeshBasicMaterial({ color: 0x00ff44, transparent: true, opacity, depthTest: false });
+                        const carMesh = new THREE.Mesh(carGeo, carMat);
+                        carMesh.position.set(snap.pos.x, snap.pos.y, snap.pos.z);
+                        if (snap.quat) carMesh.quaternion.set(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w);
+                        carMesh.renderOrder = 999;
+                        carMesh.frustumCulled = false;
+                        group.add(carMesh);
+                    });
 
                     get(this, editor_renderer, "f").scene.add(group);
                     this.__editorTrailGroup = group;
