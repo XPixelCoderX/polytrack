@@ -7272,7 +7272,10 @@ function _applyItalicsSetting(enabled) {
                 e[e.GhostCarSoundsEnabled = 21] = "GhostCarSoundsEnabled",
                 e[e.VibrationEnabled = 22] = "VibrationEnabled",
                 e[e.TouchSteeringSide = 23] = "TouchSteeringSide",
-                e[e.ItalicsEnabled = 24] = "ItalicsEnabled"
+                e[e.ItalicsEnabled = 24] = "ItalicsEnabled",
+                e[e.OrbitCameraFov = 25] = "OrbitCameraFov",
+                e[e.CockpitCameraFov = 26] = "CockpitCameraFov",
+                e[e.DecimalSpeedometer = 27] = "DecimalSpeedometer"
             }(i || (i = {}));
             const r = i
         }
@@ -7392,7 +7395,9 @@ function _applyItalicsSetting(enabled) {
             s = new WeakMap,
             i = new WeakSet,
             o = function(e) {
-                return l.get(r, r, "f", a) + (80 - l.get(r, r, "f", a)) * (1 - Math.exp(-Math.abs(e) / 200))
+                const baseFov = window.__orbitFov || 70;
+                const maxFov = Math.max(baseFov + 10, 80);
+                return baseFov + (maxFov - baseFov) * (1 - Math.exp(-Math.abs(e) / 200))
             }
             ,
             a = {
@@ -7445,7 +7450,9 @@ function _applyItalicsSetting(enabled) {
             w = new WeakMap,
             m = new WeakSet,
             x = function(e) {
-                return l.get(A, A, "f", v) + (100 - l.get(A, A, "f", v)) * (1 - Math.exp(-Math.abs(e) / 200))
+                const baseFov = window.__cockpitFov || 70;
+                const maxFov = Math.max(baseFov + 30, 100);
+                return baseFov + (maxFov - baseFov) * (1 - Math.exp(-Math.abs(e) / 200))
             }
             ,
             v = {
@@ -24101,6 +24108,8 @@ function _applyItalicsSetting(enabled) {
                 e[e.EditorPick = 23] = "EditorPick",
                 e[e.ToggleFpsCounter = 24] = "ToggleFpsCounter",
                 e[e.ToggleSpectatorCamera = 25] = "ToggleSpectatorCamera",
+                e[e.ToggleHitboxes = 40] = "ToggleHitboxes",
+                e[e.ToggleCheckpointLabels = 41] = "ToggleCheckpointLabels",
                 e[e.SpectatorMoveForwards = 26] = "SpectatorMoveForwards",
                 e[e.SpectatorMoveRight = 27] = "SpectatorMoveRight",
                 e[e.SpectatorMoveBackwards = 28] = "SpectatorMoveBackwards",
@@ -24110,7 +24119,8 @@ function _applyItalicsSetting(enabled) {
                 e[e.PreviewStepBack = 32] = "PreviewStepBack",
                 e[e.EditorClearTrail = 33] = "EditorClearTrail",
                 e[e.EditorToggleCoords = 34] = "EditorToggleCoords",
-                e[e.ToggleGhosts = 35] = "ToggleGhosts"
+                e[e.ToggleGhosts = 35] = "ToggleGhosts",
+                e[e.ToggleInputOverlay = 36] = "ToggleInputOverlay"
             }(i || (i = {}));
             const r = i
         }
@@ -29708,6 +29718,15 @@ function _applyItalicsSetting(enabled) {
                         }
                     }
                     ))
+                }
+                getFinishes() {
+                    let e = [];
+                    const t = m.get(this, s, "f").getPartTypesWithDetector(TrackPartDetectorType.Finish);
+                    for (const n of t) {
+                        const t = m.get(this, h, "f").get(n);
+                        null != t && (e = e.concat(t))
+                    }
+                    return e.filter((e => null != e.type.configuration.detector)).map((e => ({ x: e.x, y: e.y, z: e.z, rotation: e.rotation, rotationAxis: e.rotationAxis, detector: e.type.configuration.detector })))
                 }
                 getCheckpointOrders() {
                     let e = [];
@@ -38982,7 +39001,7 @@ function _applyItalicsSetting(enabled) {
         Ie.insertStyleElement = h();
         t()(Pe.A, Ie);
         Pe.A && Pe.A.locals && Pe.A.locals;
-        var Le, Ue, ze, Ne, De, Be, Ge, Fe, Oe;
+        var Le, Ue, ze, Ne, De, Be, Ge, Fe, Oe, _decSpd;
         Le = new WeakMap,
         Ue = new WeakMap,
         ze = new WeakMap,
@@ -38991,7 +39010,8 @@ function _applyItalicsSetting(enabled) {
         Be = new WeakMap,
         Ge = new WeakMap,
         Fe = new WeakMap,
-        Oe = new WeakMap;
+        Oe = new WeakMap,
+        _decSpd = new WeakMap;
         const We = class {
             constructor(e, t) {
                 Le.set(this, void 0),
@@ -39003,9 +39023,11 @@ function _applyItalicsSetting(enabled) {
                 Ge.set(this, void 0),
                 Fe.set(this, void 0),
                 Oe.set(this, []),
+                _decSpd.set(this, void 0),
                 C.set(this, Le, e, "f"),
                 C.set(this, Ue, t, "f"),
                 C.set(this, Ge, t.getSettingBoolean(R.A.ImperialUnitsEnabled), "f"),
+                C.set(this, _decSpd, t.getSettingBoolean(R.A.DecimalSpeedometer), "f"),
                 C.set(this, ze, document.createElement("div"), "f"),
                 "off" == t.getSetting(R.A.Speedometer) ? C.get(this, ze, "f").className = "speedometer-ui hidden" : "top" == t.getSetting(R.A.Speedometer) ? C.get(this, ze, "f").className = "speedometer-ui up" : C.get(this, ze, "f").className = "speedometer-ui",
                 C.get(this, Le, "f").appendChild(C.get(this, ze, "f")),
@@ -39079,7 +39101,8 @@ function _applyItalicsSetting(enabled) {
                 const t = Math.abs(e.getSpeedKmh());
                 let n;
                 n = C.get(this, Ge, "f") ? t / 1.609344 : t;
-                const i = Math.trunc(n).toString();
+                const _decimal = C.get(this, _decSpd, "f");
+                const i = _decimal ? (Math.trunc(n * 10) / 10).toFixed(1) : Math.trunc(n).toString();
                 if (i != C.get(this, Be, "f")) {
                     C.get(this, Ne, "f").innerHTML = "";
                     for (const e of i) {
@@ -42866,6 +42889,7 @@ function _applyItalicsSetting(enabled) {
                     C.get(this, wa, "f").audioVolume = 0) : (C.get(this, wa, "f").isPaused = !1,
                     C.get(this, wa, "f").audioVolume = 1),
                     C.get(this, wa, "f").isControlsDisabled = C.get(this, Ba, "f").isEnabled || C.get(this, _r, "m", Ha).call(this),
+                    window.__getPlayerControls = () => C.get(this, ya, "f")?.getControls?.() ?? null,
                     !C.get(this, Ba, "f").isEnabled && !C.get(this, _r, "m", Ha).call(this)) {
                         const e = C.get(this, ya, "f").getControls();
                         (e.up || e.down) && (C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").start()),
@@ -42932,7 +42956,7 @@ function _applyItalicsSetting(enabled) {
                         e.car.update(n)
                     }
                     C.get(this, _r, "m", $a).call(this),
-                    C.get(this, Ba, "f").update(e),
+                    C.get(this, wa, "f").hasFinished() || C.get(this, Ba, "f").update(e),
                     C.get(this, la, "f").setVisible(!C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").hasFinished() || !C.get(this, va, "f") || C.get(this, Wr, "f").touchEnabled || !C.get(this, Fr, "f").isCursorHidden || C.get(this, la, "f").hasFocus())
                 } else {
                     C.get(this, wa, "f").isPaused = !0,
@@ -48873,7 +48897,7 @@ function _applyItalicsSetting(enabled) {
         }
         ps = new WeakMap;
         const gs = fs;
-        var ms, As, vs, ys, bs, ws, xs, Ss, ks, Es, Ts, Ms, _s, Cs, Rs, Ps, Is, Ls, Us, zs, Ns, Ds, Bs, Gs, Fs, Os;
+        var ms, As, vs, ys, bs, ws, xs, Ss, ks, Es, Ts, Ms, _s, Cs, Rs, Ps, Is, Ls, Us, zs, Ns, Ds, Bs, Gs, Fs, Os, FovSlider;
         As = new WeakMap,
         vs = new WeakMap,
         ys = new WeakMap,
@@ -49002,6 +49026,8 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle"),
                 value: "true"
             }], R.A.CockpitCameraToggle),
+            C.get(this, ms, "m", FovSlider).call(this, "Cockpit cam FOV", R.A.OrbitCameraFov),
+            C.get(this, ms, "m", FovSlider).call(this, "Normal cam FOV", R.A.CockpitCameraFov),
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Checkpoints"), [{
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Off"),
                 value: "off"
@@ -49032,6 +49058,13 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Top"),
                 value: "top"
             }], R.A.Speedometer),
+            C.get(this, ms, "m", Gs).call(this, "Decimal speedometer", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.DecimalSpeedometer),
             C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Mobile")),
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Vibration"), [{
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Off"),
@@ -49197,7 +49230,10 @@ function _applyItalicsSetting(enabled) {
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Hide UI"), KeyBind.ToggleUI),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Pause"), KeyBind.Pause),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle FPS counter"), KeyBind.ToggleFpsCounter),
-            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle spectator camera"), KeyBind.ToggleSpectatorCamera);
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle spectator camera"), KeyBind.ToggleSpectatorCamera),
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle hitboxes"), KeyBind.ToggleHitboxes),
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle checkpoint labels"), KeyBind.ToggleCheckpointLabels);
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Hide input overlay"), KeyBind.ToggleInputOverlay);
             
             C.get(this, ms, "m", Ds).call(this, "UI Color");
             (() => {
@@ -49323,6 +49359,50 @@ function _applyItalicsSetting(enabled) {
             }
             )),
             a.appendChild(o),
+            C.get(this, ks, "f").appendChild(a)
+        }
+        ,
+        FovSlider = function(e, t) {
+            const rawStored = C.get(this, Ps, "f").get(t) ?? C.get(this, bs, "f").getSetting(t);
+            let currentFov = Math.round(parseFloat(rawStored) * 20);
+            if (isNaN(currentFov)) currentFov = 70;
+            const commit = (val) => {
+                val = Math.max(40, Math.min(100, Math.round(val)));
+                currentFov = val;
+                slider.value = val.toString();
+                numInput.value = val.toString();
+                C.get(this, Ps, "f").set(t, (val / 20).toString()),
+                C.get(this, bs, "f").updateSettings(Array.from(C.get(this, Ps, "f")))
+            };
+            const a = document.createElement("div");
+            a.className = "setting";
+            const s = document.createElement("p");
+            s.textContent = e,
+            a.appendChild(s);
+            const wrapper = document.createElement("div");
+            wrapper.className = "button-wrapper";
+            wrapper.style.cssText = "align-items:center;gap:8px;";
+            const slider = document.createElement("input");
+            slider.type = "range";
+            slider.min = "40";
+            slider.max = "100";
+            slider.step = "1";
+            slider.value = currentFov.toString();
+            slider.style.cssText = "width:200px;margin:0 8px;";
+            slider.addEventListener("input", () => commit(parseInt(slider.value)));
+            const numInput = document.createElement("input");
+            numInput.type = "text";
+            numInput.value = currentFov.toString();
+            numInput.style.cssText = "width:56px;font-size:22px;text-align:center;pointer-events:auto;";
+            numInput.addEventListener("change", () => {
+                const v = parseInt(numInput.value);
+                if (!isNaN(v)) commit(v);
+                else numInput.value = currentFov.toString();
+            });
+            numInput.addEventListener("keydown", (ev) => ev.stopPropagation());
+            wrapper.appendChild(slider);
+            wrapper.appendChild(numInput);
+            a.appendChild(wrapper);
             C.get(this, ks, "f").appendChild(a)
         }
         ,
@@ -49621,9 +49701,9 @@ function _applyItalicsSetting(enabled) {
                             C.get(this, oo, "f").textContent = C.get(this, Zs, "f").get("{0} players", [Mo(a)]),
                             C.get(this, oo, "f").classList.add("fade-in");
                             for (let e = 0; e < s.length; e++) {
-                                const {id: t, nickname: i, countryCode: a, time: o, carStyle: l, verifiedState: c, isSelf: h} = s[e]
+                                const {id: t, nickname: i, countryCode: a, time: o, carStyle: l, verifiedState: c, isSelf: h, submittedAt: _sa} = s[e]
                                   , d = r + e + 1;
-                                C.get(this, Xs, "m", ko).call(this, d, i, a, o, l, c, h, t, n)
+                                C.get(this, Xs, "m", ko).call(this, d, i, a, o, l, c, h, t, n, _sa)
                             }
                             C.get(this, $s, "f").determinismState == Js.Ok && (null != o ? (C.set(this, yo, Math.floor((o.position - 1) / i), "f"),
                             C.get(this, ho, "f").disabled = !1,
@@ -49659,7 +49739,7 @@ function _applyItalicsSetting(enabled) {
             ), 500)
         }
         ,
-        ko = function(e, t, n, i, r, a, s, o, l) {
+        ko = function(e, t, n, i, r, a, s, o, l, submittedAt) {
             const c = document.createElement("button");
             c.className = "button main",
             s && (C.set(this, bo, c, "f"),
@@ -49739,15 +49819,7 @@ function _applyItalicsSetting(enabled) {
                 y.appendChild(e)
             }
             const S = document.createElement("p");
-            a == To.Y.Pending ? (S.innerHTML = '<img src="images/state_pending.svg">',
-            S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Pending"))),
-            S.className = "verified-state pending") : a == To.Y.Verified ? (S.innerHTML = '<img src="images/state_verified.svg">',
-            S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Verified"))),
-            S.className = "verified-state verified") : a == To.Y.InvalidDuplicate ? (S.innerHTML = '<img src="images/state_invalid.svg">',
-            S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Duplicate"))),
-            S.className = "verified-state invalid") : (S.innerHTML = '<img src="images/state_invalid.svg">',
-            S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Invalid"))),
-            S.className = "verified-state invalid"),
+            (function() {var _d = submittedAt ? new Date(submittedAt) : null;if (_d && !isNaN(_d)) {var _dateStr = (_d.getMonth()+1) + "/" + _d.getDate() + "/" + _d.getFullYear();if (a == To.Y.Pending) {S.innerHTML = '<img src="images/state_pending.svg">';S.prepend(document.createTextNode(_dateStr));S.className = "verified-state pending";} else if (a == To.Y.Verified) {S.innerHTML = '<img src="images/state_verified.svg">';S.prepend(document.createTextNode(_dateStr));S.className = "verified-state verified";} else if (a == To.Y.InvalidDuplicate) {S.innerHTML = '<img src="images/state_invalid.svg">';S.prepend(document.createTextNode(_dateStr));S.className = "verified-state invalid";} else {S.innerHTML = '<img src="images/state_invalid.svg">';S.prepend(document.createTextNode(_dateStr));S.className = "verified-state invalid";}} else {a == To.Y.Pending ? (S.innerHTML = '<img src="images/state_pending.svg">', S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Pending"))), S.className = "verified-state pending"): a == To.Y.Verified ? (S.innerHTML = '<img src="images/state_verified.svg">', S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Verified"))), S.className = "verified-state verified"): a == To.Y.InvalidDuplicate ? (S.innerHTML = '<img src="images/state_invalid.svg">', S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Duplicate"))), S.className = "verified-state invalid"): (S.innerHTML = '<img src="images/state_invalid.svg">', S.prepend(document.createTextNode(C.get(this, Zs, "f").get("Invalid"))), S.className = "verified-state invalid");}}).call(this),
             v.appendChild(S)
         }
         ,
@@ -51998,9 +52070,9 @@ function _applyItalicsSetting(enabled) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://github.com/missonance",
+            t.href = "https://www.kodub.com",
             t.target = "_blank",
-            t.textContent = "© 2026 https://github.com/missonance - " + e.get("Version") + " 0.2.0",
+            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
@@ -52714,6 +52786,116 @@ function _applyItalicsSetting(enabled) {
                 }
                 )),
                 C.set(this, Xh, [{
+                    id: "5159a8dac6a1f397407a7b5233ad570613531f6609f7dc897490c28c9f2c7a4e",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Apostle",
+                        author: "BonnieBeans",
+                        lastModified: new Date("2026-03-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Desert,
+                    trackUrl: "tracks/community/apostle.track",
+                    thumbnail: "tracks/community/thumbnails/apostle.png"
+                }, {
+                      id: "1783b7b6c30e7fddf7ffb7c8a4a8a3b65c1ef6ec317d908d6eb05e6c905a57f6",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Stardust",
+                        author: "zihut",
+                        lastModified: new Date("2026-05-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/stardust.track",
+                    thumbnail: "tracks/community/thumbnails/stardust.png"
+                }, {
+                      id: "ddfe00045807e2786552d1e31e1363384c365487180f65d4eff1aa41e334a8e8",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Overclocked",
+                        author: "zihut",
+                        lastModified: new Date("2026-05-15T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/overclocked.track",
+                    thumbnail: "tracks/community/thumbnails/overclocked.png"
+                }, {
+                      id: "4058e3616fbd79b848e70037adde4f12b4413011050aaf1c9d875cdbe2e33d68",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Amberbound",
+                        author: "Hero <3",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/amberbound.track",
+                    thumbnail: "tracks/community/thumbnails/amberbound.png"
+                }, {
+                      id: "2ec74a179c8aba94354e3c6dee2a2920bedd7d84adf4d0a691f4a7453afdb1e8",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "The Eldtrich Estate",
+                        author: "HummusHere",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/the_eldritch_estate.track",
+                    thumbnail: "tracks/community/thumbnails/the_eldritch_estate.png"
+                }, {
+                      id: "76e1920a3ca015033a0b21156848def2c248c95d97ccf4aab2312a0302beefe0",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Star Bound",
+                        author: "skrdh & zihcx",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Desert,
+                    trackUrl: "tracks/community/star_bound.track",
+                    thumbnail: "tracks/community/thumbnails/star_bound.png"
+                }, {
+                      id: "b3ebc0effd774ddfb625debd8deee79ddebb2769dadcd362f22f767485dc31cb",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Natsu",
+                        author: "ben, 10quo07, BLAK3",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/natsu.track",
+                    thumbnail: "tracks/community/thumbnails/natsu.png"
+                }, {
+                      id: "76269faf38e8726671c05b2b9044f7aa3e66c4313cb4fa5d0fbb23fc8524fe9e",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Lenore",
+                        author: "Td.blox",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/lenore.track",
+                    thumbnail: "tracks/community/thumbnails/lenore.png"
+                }, {
+                      id: "151f12fd3ebc8942f7aaef669024a0fc149bc220f370753efe14d9371acc9c87",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "sandy lanes II",
+                        author: "2xi and qwertyuiop",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Desert,
+                    trackUrl: "tracks/community/sandy_lanes_ii.track",
+                    thumbnail: "tracks/community/thumbnails/sandy_lanes_ii.png"
+                }, {
+                      id: "f9283607ecec9c89583205cf08715c8f504cc271eec51209bb6fc0cc37ddc915",
+                    group: "0.6.1",
+                    trackMetadata: {
+                        name: "Planet 97",
+                        author: "BonnieBeans",
+                        lastModified: new Date("2026-06-16T03:23:21.000Z")
+                    },
+                    environment: TrackEnvironment.Summer,
+                    trackUrl: "tracks/community/planet_97.track",
+                    thumbnail: "tracks/community/thumbnails/planet_97.png"
+                }, {
                     id: "64bf7efaed2a47dfb03a6b152e3aef637ac251b68a725a28352f3376ff1384d7",
                     group: "0.6.0",
                     trackMetadata: {
@@ -55228,7 +55410,7 @@ function _applyItalicsSetting(enabled) {
                 ku.set(this, "v6/")
             }
             getLeaderboard(e, t, n, i, r) {
-                let a = "https://vps.kodub.com/" + C.get(this, ku, "f") + "leaderboard?version=0.6.0&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
+                let a = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard?version=0.6.0&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
                 return this.determinismState == Js.Ok && (a += "&userTokenHash=" + encodeURIComponent(e)),
                 new Promise(( (t, n) => {
                     const i = new XMLHttpRequest;
@@ -55297,7 +55479,8 @@ function _applyItalicsSetting(enabled) {
                                             time: new yt.A(t.frames),
                                             carStyle: jt.A.deserializeSafe(t.carStyle),
                                             verifiedState: t.verifiedState,
-                                            isSelf: t.userId == e
+                                            isSelf: t.userId == e,
+                                            submittedAt: t.time ?? null
                                         })
                                     }
                                     if (!("userEntry"in r))
@@ -55345,7 +55528,7 @@ function _applyItalicsSetting(enabled) {
                 ))
             }
             getLeaderboardUserEntry(e, t, n) {
-                const i = "https://vps.kodub.com/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.0&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=" + n.toString();
+                const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.0&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=" + n.toString();
                 return new Promise(( (e, t) => {
                     const n = new XMLHttpRequest;
                     n.timeout = C.get(this, wu, "f"),
@@ -55393,7 +55576,7 @@ function _applyItalicsSetting(enabled) {
                 ))
             }
             getRecordings(e) {
-                const t = "https://vps.kodub.com/" + C.get(this, ku, "f") + "recordings?version=0.6.0&ids=" + e.join(",");
+                const t = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "recordings?version=0.6.0&ids=" + e.join(",");
                 return new Promise(( (e, n) => {
                     if (this.determinismState != Js.Ok)
                         n(new Error("Getting recordings not allowed"));
@@ -55465,7 +55648,7 @@ function _applyItalicsSetting(enabled) {
                         if (h.length >= C.get(this, Su, "f"))
                             c(new Error("Recording is too large"));
                         else {
-                            const o = "https://vps.kodub.com/" + C.get(this, ku, "f") + "leaderboard";
+                            const o = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard";
                             let d = "version=0.6.0&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize() + "&trackId=" + r + "&frames=" + s.numberOfFrames.toString() + "&recording=" + h;
                             null != a && (d += "&onlyVerified=" + a.toString());
                             const u = new XMLHttpRequest;
@@ -55537,7 +55720,7 @@ function _applyItalicsSetting(enabled) {
             }
             submitUserProfile(e, t, n, i) {
                 return new Promise(( (r, a) => {
-                    const s = "https://vps.kodub.com/" + C.get(this, ku, "f") + "user"
+                    const s = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "user"
                       , o = "version=0.6.0&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize()
                       , l = new XMLHttpRequest;
                     l.timeout = C.get(this, wu, "f"),
@@ -55557,7 +55740,7 @@ function _applyItalicsSetting(enabled) {
                     if (this.determinismState != Js.Ok)
                         s(new Error("Submit not allowed"));
                     else {
-                        const o = "https://vps.kodub.com/" + C.get(this, ku, "f") + "verifyRecordings"
+                        const o = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "verifyRecordings"
                           , l = "version=0.6.0&userToken=" + encodeURIComponent(e) + (null != t ? "&trackId=" + t : "") + "&maxFrames=" + n.toString() + "&getEstimatedRemaining=" + i.toString() + "&recordings=" + encodeURIComponent(JSON.stringify(r))
                           , c = new XMLHttpRequest;
                         c.timeout = C.get(this, xu, "f"),
@@ -55631,7 +55814,7 @@ function _applyItalicsSetting(enabled) {
             }
             getUser(e) {
                 return new Promise(( (t, n) => {
-                    const i = "https://vps.kodub.com/" + C.get(this, ku, "f") + "user?version=0.6.0&userToken=" + encodeURIComponent(e)
+                    const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "user?version=0.6.0&userToken=" + encodeURIComponent(e)
                       , r = new XMLHttpRequest;
                     r.timeout = C.get(this, wu, "f"),
                     r.overrideMimeType("text/plain"),
@@ -55683,16 +55866,16 @@ function _applyItalicsSetting(enabled) {
             createMultiplayerHostWebSocket() {
                 if (this.determinismState != Js.Ok)
                     throw new Error("WebSocket creation not allowed with non-deterministic physics");
-                return new WebSocket("https://vps.kodub.com/" + C.get(this, ku, "f") + "multiplayer/host")
+                return new WebSocket("https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "multiplayer/host")
             }
             createMultiplayerJoinWebSocket() {
                 if (this.determinismState != Js.Ok)
                     throw new Error("WebSocket creation not allowed with non-deterministic physics");
-                return new WebSocket("https://vps.kodub.com/" + C.get(this, ku, "f") + "multiplayer/join")
+                return new WebSocket("https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "multiplayer/join")
             }
             getIceServers() {
                 return new Promise(( (e, t) => {
-                    const n = "https://vps.kodub.com/" + C.get(this, ku, "f") + "iceServers?version=0.6.0"
+                    const n = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "iceServers?version=0.6.0"
                       , i = new XMLHttpRequest;
                     i.timeout = C.get(this, wu, "f"),
                     i.overrideMimeType("text/plain"),
@@ -55779,10 +55962,10 @@ function _applyItalicsSetting(enabled) {
                 null != n && C.get(this, Mu, "m", Pu).call(this, n)
             }
             defaultSettings() {
-                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"]])
+                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "false"]])
             }
             defaultKeyBindings() {
-                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]]])
+                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]]])
             }
             getSettings() {
                 return Array.from(C.get(this, Cu, "f"))
@@ -57309,9 +57492,164 @@ function _applyItalicsSetting(enabled) {
                 Q.update(t),
                 k.update(t)
             }
-            )),
+            ));
+
+    
+            let _hitboxState = 0;
+            const _hitboxMeshes = [];
+            const _clearHitboxes = (scene) => {
+                for (const entry of _hitboxMeshes) {
+                    if (entry.lines) { scene.remove(entry.lines); entry.bufGeo && entry.bufGeo.dispose(); }
+                    entry.mat && entry.mat.dispose();
+                }
+                _hitboxMeshes.length = 0;
+            };
+           
+            const _rotAxisTable = [
+                [new THREE.Quaternion(0,0,0,1), new THREE.Quaternion(0,.7071067811865475,0,.7071067811865476), new THREE.Quaternion(0,1,0,0), new THREE.Quaternion(0,.7071067811865476,0,-.7071067811865475)],
+                [new THREE.Quaternion(0,0,1,0), new THREE.Quaternion(.7071067811865475,0,.7071067811865476,0), new THREE.Quaternion(1,0,0,0), new THREE.Quaternion(.7071067811865476,0,-.7071067811865475,0)],
+                [new THREE.Quaternion(0,0,-.7071067811865477,.7071067811865475), new THREE.Quaternion(.5,.5,-.5,.5), new THREE.Quaternion(.7071067811865475,.7071067811865477,0,0), new THREE.Quaternion(.5,.5,.5,-.5)],
+                [new THREE.Quaternion(0,0,.7071067811865475,.7071067811865476), new THREE.Quaternion(.5,-.5,.5,.5), new THREE.Quaternion(.7071067811865476,-.7071067811865475,0,0), new THREE.Quaternion(.5,-.5,-.5,-.5)],
+                [new THREE.Quaternion(.7071067811865475,0,0,.7071067811865476), new THREE.Quaternion(.5,.5,.5,.5), new THREE.Quaternion(0,.7071067811865476,.7071067811865475,0), new THREE.Quaternion(-.5,.5,.5,-.5)],
+                [new THREE.Quaternion(-.7071067811865477,0,0,.7071067811865475), new THREE.Quaternion(-.5,-.5,.5,.5), new THREE.Quaternion(0,-.7071067811865475,.7071067811865477,0), new THREE.Quaternion(.5,-.5,.5,-.5)],
+            ];
+            const _buildHitboxes = (xray) => {
+                try {
+                    const MeshBasicMaterial  = THREE.MeshBasicMaterial;
+                    const Mesh               = THREE.Mesh;
+                    const Matrix4            = THREE.Matrix4;
+                    const Vector3            = THREE.Vector3;
+                    const scene              = h.scene;
+                    const checkpoints        = v.getCheckpoints();
+                    const finishes           = v.getFinishes();
+                    const partSize           = Track.A.partSize;
+                    const dt                 = !xray;
+
+                    const matCheckpointColor = 0xffdd00;
+                    const matFinishColor     = 0xff1111;
+                    const matCheckpointFill  = new MeshBasicMaterial({ color: matCheckpointColor, transparent: true, opacity: 0.18, depthTest: dt, side: 2 });
+                    const matFinishFill      = new MeshBasicMaterial({ color: matFinishColor,     transparent: true, opacity: 0.18, depthTest: dt, side: 2 });
+
+                    const addBox = (part, detector, lineColor, matFill) => {
+                        const [cx, cy, cz] = detector.center;
+                        const [sx, sy, sz] = detector.size;
+                        const q       = _rotAxisTable[part.rotationAxis][part.rotation].clone();
+                        const worldPos = new Vector3(part.x * partSize, part.y * partSize, part.z * partSize);
+                        worldPos.add(new Vector3(cx, cy, cz).applyQuaternion(q));
+                        const mat4 = new Matrix4().compose(worldPos, q, new Vector3(1, 1, 1));
+
+                      
+                        const fillGeo  = new THREE.BoxGeometry(sx, sy, sz);
+                        const fillMesh = new Mesh(fillGeo, matFill);
+                        fillMesh.renderOrder      = xray ? 998 : 0;
+                        fillMesh.matrixAutoUpdate = false;
+                        fillMesh.matrix.copy(mat4);
+                        scene.add(fillMesh);
+                        _hitboxMeshes.push({ lines: fillMesh, bufGeo: fillGeo });
+
+    
+                        const hw = sx / 2, hh = sy / 2, hd = sz / 2;
+                        const verts = new Float32Array([
+                            -hw,-hh,-hd,  hw,-hh,-hd,  hw,-hh,-hd,  hw,-hh, hd,
+                             hw,-hh, hd, -hw,-hh, hd, -hw,-hh, hd, -hw,-hh,-hd,
+                            -hw, hh,-hd,  hw, hh,-hd,  hw, hh,-hd,  hw, hh, hd,
+                             hw, hh, hd, -hw, hh, hd, -hw, hh, hd, -hw, hh,-hd,
+                            -hw,-hh,-hd, -hw, hh,-hd,  hw,-hh,-hd,  hw, hh,-hd,
+                             hw,-hh, hd,  hw, hh, hd, -hw,-hh, hd, -hw, hh, hd,
+                        ]);
+                        const wireGeo = new THREE.BufferGeometry();
+                        wireGeo.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+                        const wireMat  = new THREE.LineBasicMaterial({ color: lineColor, depthTest: dt });
+                        const wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+                        wireMesh.renderOrder      = xray ? 999 : 1;
+                        wireMesh.matrixAutoUpdate = false;
+                        wireMesh.matrix.copy(mat4);
+                        scene.add(wireMesh);
+                        _hitboxMeshes.push({ lines: wireMesh, bufGeo: wireGeo, mat: wireMat });
+                    };
+
+                    for (const cp of checkpoints) addBox(cp, cp.detector, matCheckpointColor, matCheckpointFill);
+                    for (const fn of finishes)    addBox(fn, fn.detector,  matFinishColor,     matFinishFill);
+                    _hitboxMeshes.push({ mat: matCheckpointFill }, { mat: matFinishFill });
+                } catch(_e) { console.warn("Hitbox toggle error:", _e); }
+            };
+           
+            let _cpLabelsVisible = false;
+            const _cpLabelMeshes = [];
+            const _cpLabelTextures = [];
+
+            const _clearCpLabels = () => {
+                for (const m of _cpLabelMeshes) { h.scene.remove(m); m.geometry.dispose(); }
+                for (const t of _cpLabelTextures) t.dispose();
+                _cpLabelMeshes.length = 0;
+                _cpLabelTextures.length = 0;
+            };
+
+            const _makeLabelTexture = (text) => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext("2d");
+               
+                ctx.fillStyle = "rgba(0,0,0,0.75)";
+                ctx.beginPath(); ctx.arc(64, 64, 60, 0, Math.PI * 2); ctx.fill();
+                
+                ctx.fillStyle = "#ffdd00";
+                ctx.font = "bold 72px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(text, 64, 68);
+                const tex = new THREE.Texture(canvas);
+                tex.needsUpdate = true;
+                return tex;
+            };
+
+            const _buildCpLabels = () => {
+                _clearCpLabels();
+                try {
+                    const checkpoints = v.getCheckpoints();
+                    const partSize    = Track.A.partSize;
+                    for (const n of checkpoints) {
+                        const q   = _rotAxisTable[n.rotationAxis][n.rotation].clone();
+                        const pos = new THREE.Vector3(...n.detector.center)
+                            .add(new THREE.Vector3(0, 1.2, 0))
+                            .applyQuaternion(q);
+                        pos.add(new THREE.Vector3(n.x * partSize, n.y * partSize, n.z * partSize));
+
+                        const tex  = _makeLabelTexture((n.checkpointOrder + 1).toString());
+                        const mat  = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, side: 2 });
+                        const geo  = new THREE.PlaneGeometry(2.5, 2.5);
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.position.copy(pos);
+                        mesh.renderOrder = 1000;
+                       
+                        mesh.onBeforeRender = (renderer, scene, camera) => {
+                            mesh.quaternion.copy(camera.quaternion);
+                        };
+                        h.scene.add(mesh);
+                        _cpLabelMeshes.push(mesh);
+                        _cpLabelTextures.push(tex);
+                    }
+                } catch(_e) { console.warn("Checkpoint labels error:", _e); }
+            };
+
+            const _toggleCpLabels = () => {
+                _cpLabelsVisible = !_cpLabelsVisible;
+                if (_cpLabelsVisible) _buildCpLabels();
+                else _clearCpLabels();
+            };
+           
+
             window.addEventListener("keyup", (e => {
-                r.checkKeyBinding(e, KeyBind.ToggleFpsCounter) && k.toggle()
+                r.checkKeyBinding(e, KeyBind.ToggleFpsCounter) && k.toggle();
+                if (r.checkKeyBinding(e, KeyBind.ToggleHitboxes)) {
+                    _hitboxState = (_hitboxState + 1) % 3;
+                    _clearHitboxes(h.scene);
+                    if (_hitboxState === 1)      _buildHitboxes(true);
+                    else if (_hitboxState === 2) _buildHitboxes(false);
+                }
+                if (r.checkKeyBinding(e, KeyBind.ToggleCheckpointLabels)) {
+                    _toggleCpLabels();
+                }
             }
             ))
         }()
@@ -57338,5 +57676,112 @@ function _applyItalicsSetting(enabled) {
     window.__ppvWorkers.forEach(function(w) {
       w.postMessage({ messageType: "ppvSetSpeed", speed: currentSpeed });
     });
+  };
+})();
+
+
+(function() {
+  var ui = null;
+  var rafId = null;
+  var arrows = {};
+  var overlayHidden = false;
+
+  var STORAGE_KEY = "polytrack_v5_prod_key_bindings";
+  var DEFAULT_TOGGLE_KEY = "KeyI";
+
+  function getToggleKeys() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var bindings = JSON.parse(raw);
+        for (var i = 0; i < bindings.length; i++) {
+          if (bindings[i][0] === "ToggleInputOverlay") {
+            return bindings[i][1].filter(function(k) { return k != null; });
+          }
+        }
+      }
+    } catch (e) {}
+    return [DEFAULT_TOGGLE_KEY];
+  }
+
+  window.addEventListener("keydown", function(e) {
+    if (!ui) return;
+    var keys = getToggleKeys();
+    if (keys.indexOf(e.code) !== -1) {
+      overlayHidden = !overlayHidden;
+      e.preventDefault();
+    }
+  });
+
+  function createUI() {
+    var container = document.createElement("div");
+    container.className = "input-visualizer-ui";
+    container.style.cssText = "display:none;";
+
+    ["arrow-up", "arrow-right", "arrow-down", "arrow-left"].forEach(function(cls) {
+      var d = document.createElement("div");
+      d.className = cls;
+      var img = document.createElement("img");
+      img.src = "images/" + cls.replace("arrow-", "arrow_") + ".svg";
+      img.style.cssText = "margin:0;width:100%;height:100%;box-sizing:border-box;";
+      d.appendChild(img);
+      container.appendChild(d);
+      arrows[cls] = d;
+    });
+
+    document.getElementById("ui").appendChild(container);
+    return container;
+  }
+
+  function update() {
+    rafId = requestAnimationFrame(update);
+    var inTest = !!document.querySelector(".game-ui");
+    ui.style.display = (inTest && !overlayHidden) ? "" : "none";
+    if (!inTest || overlayHidden) return;
+    var c = typeof window.__getPlayerControls === "function" ? window.__getPlayerControls() : null;
+    if (!c) return;
+    arrows["arrow-up"].className    = "arrow-up"    + (c.up    ? " active" : "");
+    arrows["arrow-right"].className = "arrow-right" + (c.right ? " active" : "");
+    arrows["arrow-down"].className  = "arrow-down"  + (c.down  ? " active" : "");
+    arrows["arrow-left"].className  = "arrow-left"  + (c.left  ? " active" : "");
+  }
+
+  function tryInit() {
+    var uiEl = document.getElementById("ui");
+    if (uiEl) {
+      ui = createUI();
+      update();
+    } else {
+      setTimeout(tryInit, 100);
+    }
+  }
+  tryInit();
+})();
+
+(function() {
+  var SETTINGS_KEY = "polytrack_v5_prod_settings";
+
+  window.__orbitFov   = 70;
+  window.__cockpitFov = 70;
+
+  function applyFovFromArray(settings) {
+    for (var i = 0; i < settings.length; i++) {
+      var key = settings[i][0], val = parseFloat(settings[i][1]);
+      if (key === "OrbitCameraFov"   && !isNaN(val)) window.__orbitFov   = val * 20;
+      if (key === "CockpitCameraFov" && !isNaN(val)) window.__cockpitFov = val * 20;
+    }
+  }
+
+  try {
+    var raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) applyFovFromArray(JSON.parse(raw));
+  } catch (e) {}
+
+  var _origSetItem = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, value) {
+    _origSetItem(key, value);
+    if (key === SETTINGS_KEY) {
+      try { applyFovFromArray(JSON.parse(value)); } catch (e) {}
+    }
   };
 })();
