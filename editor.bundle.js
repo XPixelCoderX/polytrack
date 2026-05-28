@@ -1040,6 +1040,166 @@
                     localStorage.setItem("editorTrailSnapshotEvery", _snapInput.value);
                 })),
                 _snapDiv.appendChild(_snapInput);
+                const _trailColorDiv = document.createElement("div");
+                _trailColorDiv.className = "setting",
+                f.appendChild(_trailColorDiv);
+                const _trailColorLabel = document.createElement("label");
+                _trailColorLabel.className = "title";
+                _trailColorLabel.textContent = "Trail input colours";
+                _trailColorDiv.appendChild(_trailColorLabel);
+                const _trailColorRow = document.createElement("div");
+                _trailColorRow.style.cssText = "display:flex;align-items:center;gap:16px;margin-top:10px;";
+                const _trailColorToggle = document.createElement("button");
+                const _trailColorOn = localStorage.getItem("editorTrailColors") === "1";
+                _trailColorToggle.className = "button";
+                _trailColorToggle.style.cssText = "font-size:24px;padding:8px 24px;";
+                _trailColorToggle.textContent = _trailColorOn ? "On" : "Off";
+                _trailColorRow.appendChild(_trailColorToggle);
+                _trailColorDiv.appendChild(_trailColorRow);
+                // per-colour toggles
+                const _trailColorDefs = [
+                    { key: "editorTrailColorAccel",       label: "Accelerating",        defaultColor: "#00ff44" },
+                    { key: "editorTrailColorBrake",        label: "Braking",             defaultColor: "#ff2222" },
+                    { key: "editorTrailColorBrakeTurn",    label: "Braking + turning",   defaultColor: "#ff6600" },
+                    { key: "editorTrailColorAccelTurn",    label: "Accel + turning",     defaultColor: "#ffff00" },
+                    { key: "editorTrailColorSteer",        label: "Steering only",       defaultColor: "#44aaff" },
+                    { key: "editorTrailColorCoast",        label: "Coasting",            defaultColor: "#888888" },
+                ];
+                const _trailColorSubDiv = document.createElement("div");
+                _trailColorSubDiv.style.cssText = "margin-top:12px;display:" + (_trailColorOn ? "block" : "none") + ";";
+                _trailColorDefs.forEach(({ key, label, defaultColor }) => {
+                    const colorKey = key + "Value";
+                    const savedColor = localStorage.getItem(colorKey) || defaultColor;
+                    const row = document.createElement("div");
+                    row.style.cssText = "display:flex;align-items:center;gap:12px;margin-bottom:8px;";
+                    const swatch = document.createElement("span");
+                    swatch.style.cssText = "display:inline-block;width:24px;height:24px;border-radius:3px;background:" + savedColor + ";flex-shrink:0;cursor:pointer;border:2px solid var(--surface-tertiary-color);";
+                    swatch.title = "Click to change colour";
+                    // inline popover with hue/lightness sliders + hex input
+                    const popover = document.createElement("div");
+                    popover.style.cssText = "display:none;flex-direction:column;gap:8px;margin-top:6px;padding:10px;background:var(--surface-secondary-color);border:1px solid var(--surface-tertiary-color);border-radius:4px;";
+                    const hexInput = document.createElement("input");
+                    hexInput.type = "text";
+                    hexInput.maxLength = 7;
+                    hexInput.value = savedColor;
+                    hexInput.style.cssText = "font-size:20px;width:100%;box-sizing:border-box;";
+                    const hueRow = document.createElement("div");
+                    hueRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+                    const hueLbl = document.createElement("span");
+                    hueLbl.style.cssText = "font-size:18px;color:var(--text-color);width:28px;flex-shrink:0;";
+                    hueLbl.textContent = "H";
+                    const hueSlider = document.createElement("input");
+                    hueSlider.type = "range"; hueSlider.min = "0"; hueSlider.max = "360"; hueSlider.style.cssText = "flex:1;";
+                    const satRow = document.createElement("div");
+                    satRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+                    const satLbl = document.createElement("span");
+                    satLbl.style.cssText = "font-size:18px;color:var(--text-color);width:28px;flex-shrink:0;";
+                    satLbl.textContent = "S";
+                    const satSlider = document.createElement("input");
+                    satSlider.type = "range"; satSlider.min = "0"; satSlider.max = "100"; satSlider.style.cssText = "flex:1;";
+                    const litRow = document.createElement("div");
+                    litRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+                    const litLbl = document.createElement("span");
+                    litLbl.style.cssText = "font-size:18px;color:var(--text-color);width:28px;flex-shrink:0;";
+                    litLbl.textContent = "L";
+                    const litSlider = document.createElement("input");
+                    litSlider.type = "range"; litSlider.min = "0"; litSlider.max = "100"; litSlider.style.cssText = "flex:1;";
+                    function hexToHsl(hex) {
+                        let r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+                        const max = Math.max(r,g,b), min = Math.min(r,g,b); let h,s,l=(max+min)/2;
+                        if (max===min) { h=s=0; } else {
+                            const d=max-min; s=l>0.5?d/(2-max-min):d/(max+min);
+                            switch(max){ case r:h=((g-b)/d+(g<b?6:0))/6;break; case g:h=((b-r)/d+2)/6;break; default:h=((r-g)/d+4)/6; }
+                        }
+                        return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
+                    }
+                    function hslToHex(h,s,l) {
+                        s/=100; l/=100; const a=s*Math.min(l,1-l);
+                        const f=n=>{const k=(n+h/30)%12; const c=l-a*Math.max(Math.min(k-3,9-k,1),-1); return Math.round(255*c).toString(16).padStart(2,'0');};
+                        return '#'+f(0)+f(8)+f(4);
+                    }
+                    function syncSliders(hex) {
+                        if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+                        const [h,s,l] = hexToHsl(hex);
+                        hueSlider.value = h; satSlider.value = s; litSlider.value = l;
+                    }
+                    function applyColor(hex) {
+                        swatch.style.background = hex;
+                        hexInput.value = hex;
+                        localStorage.setItem(colorKey, hex);
+                    }
+                    syncSliders(savedColor);
+                    hexInput.addEventListener("input", () => { if (/^#[0-9a-fA-F]{6}$/.test(hexInput.value)) { syncSliders(hexInput.value); applyColor(hexInput.value); } });
+                    [hueSlider, satSlider, litSlider].forEach(sl => sl.addEventListener("input", () => {
+                        const hex = hslToHex(+hueSlider.value, +satSlider.value, +litSlider.value);
+                        applyColor(hex); hexInput.value = hex;
+                    }));
+                    hueRow.append(hueLbl, hueSlider);
+                    satRow.append(satLbl, satSlider);
+                    litRow.append(litLbl, litSlider);
+                    const resetBtn = document.createElement("button");
+                    resetBtn.className = "button";
+                    resetBtn.style.cssText = "font-size:18px;padding:4px 14px;align-self:flex-start;";
+                    resetBtn.textContent = "Reset";
+                    resetBtn.addEventListener("click", () => {
+                        applyColor(defaultColor);
+                        syncSliders(defaultColor);
+                        localStorage.removeItem(colorKey);
+                    });
+                    popover.append(hexInput, hueRow, satRow, litRow, resetBtn);
+                    swatch.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        const open = popover.style.display === "flex";
+                        // close all other popovers
+                        _trailColorSubDiv.querySelectorAll(".tc-popover").forEach(p => p.style.display = "none");
+                        popover.style.display = open ? "none" : "flex";
+                    });
+                    popover.className = "tc-popover";
+                    const lbl = document.createElement("span");
+                    lbl.style.cssText = "font-size:22px;color:var(--text-color);flex:1;";
+                    lbl.textContent = label;
+                    const btn = document.createElement("button");
+                    btn.className = "button";
+                    btn.style.cssText = "font-size:20px;padding:5px 18px;";
+                    const isOn = localStorage.getItem(key) !== "0";
+                    btn.textContent = isOn ? "On" : "Off";
+                    btn.addEventListener("click", () => {
+                        const cur = localStorage.getItem(key) !== "0";
+                        localStorage.setItem(key, cur ? "0" : "1");
+                        btn.textContent = cur ? "Off" : "On";
+                    });
+                    row.appendChild(swatch);
+                    row.appendChild(lbl);
+                    row.appendChild(btn);
+                    _trailColorSubDiv.appendChild(row);
+                    _trailColorSubDiv.appendChild(popover);
+                });
+                // smart fallback toggle
+                const _trailFallbackRow = document.createElement("div");
+                _trailFallbackRow.style.cssText = "display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:10px;border-top:1px solid var(--surface-tertiary-color);";
+                const _trailFallbackLbl = document.createElement("span");
+                _trailFallbackLbl.style.cssText = "font-size:22px;color:var(--text-color);flex:1;";
+                _trailFallbackLbl.textContent = "Smart fallback";
+                const _trailFallbackBtn = document.createElement("button");
+                _trailFallbackBtn.className = "button";
+                _trailFallbackBtn.style.cssText = "font-size:20px;padding:5px 18px;flex-shrink:0;";
+                const _trailFallbackOn = localStorage.getItem("editorTrailColorFallback") === "1";
+                _trailFallbackBtn.textContent = _trailFallbackOn ? "On" : "Off";
+                _trailFallbackBtn.addEventListener("click", () => {
+                    const cur = localStorage.getItem("editorTrailColorFallback") === "1";
+                    localStorage.setItem("editorTrailColorFallback", cur ? "0" : "1");
+                    _trailFallbackBtn.textContent = cur ? "Off" : "On";
+                });
+                _trailFallbackRow.appendChild(_trailFallbackLbl);
+                _trailFallbackRow.appendChild(_trailFallbackBtn);
+                _trailColorSubDiv.appendChild(_trailFallbackRow);
+                _trailColorDiv.appendChild(_trailColorSubDiv);
+                _trailColorToggle.addEventListener("click", () => {
+                    const now = localStorage.getItem("editorTrailColors") === "1";
+                    localStorage.setItem("editorTrailColors", now ? "0" : "1");
+                    _trailColorToggle.textContent = now ? "Off" : "On";
+                    _trailColorSubDiv.style.display = now ? "none" : "block";
+                });
                 const _autoSaveDiv = document.createElement("div");
                 _autoSaveDiv.className = "setting",
                 f.appendChild(_autoSaveDiv);
@@ -2199,9 +2359,7 @@
         }
         ,
         isKeyboardInputActive = function() {
-            const focused = document.activeElement;
-            const isTypingInInput = focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable);
-            return !!get(this, editor_isActive, "f") && (!get(this, editor_isTyping, "f") && !isTypingInInput && (!get(this, editor_dialogManager, "f").isOpen && null == get(this, editor_helpUI, "f") && !get(this, editor_exportUI, "f").isOpen && null == get(this, editor_trackSettingsUI, "f") && null == get(this, editor_activeModal, "f")))
+            return !!get(this, editor_isActive, "f") && (!get(this, editor_isTyping, "f") && (!get(this, editor_dialogManager, "f").isOpen && null == get(this, editor_helpUI, "f") && !get(this, editor_exportUI, "f").isOpen && null == get(this, editor_trackSettingsUI, "f") && null == get(this, editor_activeModal, "f")))
         }
         ;
         const TrackEditor = class {
@@ -2394,9 +2552,6 @@
                     set(this, editor_selectionStart, null, "f")) : null != get(this, editor_activePlacement, "f") ? (set(this, editor_activePlacement, null, "f"),
                     get(this, Ft, "m", rebuildPreviewMesh).call(this)) : get(this, Ft, "m", confirmExit).call(this, p),
                     t.preventDefault()),
-                    f.checkKeyBinding(t, KeyBind.EditorHeightModifier) && (set(this, editor_isHeightModifierHeld, !0, "f"),
-                    get(this, editor_orbitControls, "f").enableZoom = !1,
-                    t.preventDefault()),
                     t.ctrlKey ? ("KeyZ" == t.code && (t.shiftKey ? get(this, Ft, "m", redo).call(this) : get(this, Ft, "m", undo).call(this),
                     t.preventDefault()),
                     "KeyY" == t.code && (get(this, Ft, "m", redo).call(this),
@@ -2412,7 +2567,10 @@
                     set(this, editor_activePlacement, null, "f"),
                     get(this, Ft, "m", selectPart).call(this, null),
                     t.preventDefault()) : "KeyV" == t.code && (null != get(this, editor_activePlacement, "f") ? get(this, Ft, "m", placeActiveParts).call(this) : null != get(this, editor_clipboard, "f") && get(this, Ft, "m", activatePaste).call(this),
-                    get(this, Ft, "m", selectPart).call(this, null))) : (f.checkKeyBinding(t, KeyBind.EditorRotatePart) && (set(this, editor_currentRotation, (get(this, editor_currentRotation, "f") + 1) % 4, "f"),
+                    get(this, Ft, "m", selectPart).call(this, null))) : (f.checkKeyBinding(t, KeyBind.EditorHeightModifier) && (set(this, editor_isHeightModifierHeld, !0, "f"),
+                    get(this, editor_orbitControls, "f").enableZoom = !1,
+                    t.preventDefault()),
+                    f.checkKeyBinding(t, KeyBind.EditorRotatePart) && (set(this, editor_currentRotation, (get(this, editor_currentRotation, "f") + 1) % 4, "f"),
                     get(this, editor_sideToolbar, "f").rotation = get(this, editor_currentRotation, "f"),
                     get(this, Ft, "m", recalcMinYOffset).call(this),
                     t.preventDefault()),
@@ -3349,38 +3507,112 @@
 
                     const group = new THREE.Group();
 
-                    
+                    // input bit flags: up=1, down=2, left=4, right=8
+                    const INPUT_ACCEL  = 1;
+                    const INPUT_BRAKE  = 2;
+                    const INPUT_LEFT   = 4;
+                    const INPUT_RIGHT  = 8;
+                    const _trailColorsEnabled = localStorage.getItem("editorTrailColors") === "1";
+
+                    const _colorEnabled = {
+                        accel:      localStorage.getItem("editorTrailColorAccel")     !== "0",
+                        brake:      localStorage.getItem("editorTrailColorBrake")      !== "0",
+                        brakeTurn:  localStorage.getItem("editorTrailColorBrakeTurn")  !== "0",
+                        accelTurn:  localStorage.getItem("editorTrailColorAccelTurn")  !== "0",
+                        steer:      localStorage.getItem("editorTrailColorSteer")      !== "0",
+                        coast:      localStorage.getItem("editorTrailColorCoast")      !== "0",
+                    };
+                    function hexToInt(hex) { return parseInt((hex || "#000000").replace("#",""), 16); }
+                    const _colors = {
+                        accel:     hexToInt(localStorage.getItem("editorTrailColorAccelValue")     || "#00ff44"),
+                        brake:     hexToInt(localStorage.getItem("editorTrailColorBrakeValue")      || "#ff2222"),
+                        brakeTurn: hexToInt(localStorage.getItem("editorTrailColorBrakeTurnValue")  || "#ff6600"),
+                        accelTurn: hexToInt(localStorage.getItem("editorTrailColorAccelTurnValue")  || "#ffff00"),
+                        steer:     hexToInt(localStorage.getItem("editorTrailColorSteerValue")      || "#44aaff"),
+                        coast:     hexToInt(localStorage.getItem("editorTrailColorCoastValue")      || "#888888"),
+                    };
+                    const _smartFallback = localStorage.getItem("editorTrailColorFallback") === "1";
+                    function inputColor(bits) {
+                        if (!_trailColorsEnabled) return _colors.accel;
+                        const brake = !!(bits & INPUT_BRAKE);
+                        const accel = !!(bits & INPUT_ACCEL);
+                        const steer = !!(bits & (INPUT_LEFT | INPUT_RIGHT));
+                        if (bits === 0) {
+                            return _colorEnabled.coast ? _colors.coast : _colors.accel;
+                        }
+                        if (brake && steer) {
+                            if (_colorEnabled.brakeTurn) return _colors.brakeTurn;
+                            if (_smartFallback && _colorEnabled.brake) return _colors.brake;
+                            return _colors.accel;
+                        }
+                        if (brake) {
+                            return _colorEnabled.brake ? _colors.brake : _colors.accel;
+                        }
+                        if (accel && steer) {
+                            if (_colorEnabled.accelTurn) return _colors.accelTurn;
+                            if (_smartFallback && _colorEnabled.accel) return _colors.accel;
+                            return _colors.accel;
+                        }
+                        if (accel) {
+                            return _colorEnabled.accel ? _colors.accel : _colors.accel;
+                        }
+                        if (steer) {
+                            return _colorEnabled.steer ? _colors.steer : _colors.accel;
+                        }
+                        return _colors.accel;
+                    }
+
                     const pts = data.points;
+                    const inputs = data.inputs || [];
                     const vectors = [];
                     for (let i = 0; i < pts.length; i += 3) {
                         vectors.push(new THREE.Vector3(pts[i], pts[i+1], pts[i+2]));
                     }
-                    
-                    const step = Math.max(1, Math.floor(vectors.length / 200));
-                    const sampled = vectors.filter((_, i) => i % step === 0);
-                    if (sampled.length >= 2) {
-                        const lineGeo = new THREE.BufferGeometry().setFromPoints(sampled);
-                        const lineMat = new THREE.LineBasicMaterial({
-                            color: 0x00ff44,
-                            transparent: true,
-                            opacity: 0.75,
-                            depthTest: false
-                        });
-                        const trail = new THREE.Line(lineGeo, lineMat);
-                        trail.renderOrder = 998;
-                        trail.frustumCulled = false;
-                        group.add(trail);
+
+                    // draw coloured line segments grouped by input state
+                    if (vectors.length >= 2) {
+                        let segStart = 0;
+                        let segBits  = inputs[0] || 0;
+                        const flushSeg = (end) => {
+                            if (end <= segStart) return;
+                            const segPts = vectors.slice(segStart, end + 1);
+                            if (segPts.length < 2) return;
+                            const lineGeo = new THREE.BufferGeometry().setFromPoints(segPts);
+                            const lineMat = new THREE.LineBasicMaterial({
+                                color: inputColor(segBits),
+                                transparent: true,
+                                opacity: 0.85,
+                                depthTest: false
+                            });
+                            const line = new THREE.Line(lineGeo, lineMat);
+                            line.renderOrder = 998;
+                            line.frustumCulled = false;
+                            group.add(line);
+                        };
+                        for (let i = 1; i < vectors.length; i++) {
+                            const b = inputs[i] || 0;
+                            if (b !== segBits) {
+                                flushSeg(i);
+                                segStart = i;
+                                segBits  = b;
+                            }
+                        }
+                        flushSeg(vectors.length - 1);
                     }
 
-                    
+                    // snapshot boxes coloured by nearest point's input
                     const snapshotsToRender = (data.snapshots && data.snapshots.length > 0)
                         ? [...data.snapshots, data.finalPos ? { pos: data.finalPos, quat: data.finalQuat } : null].filter(Boolean)
                         : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
+                    const snapshotEvery = Math.round(vectors.length / Math.max(snapshotsToRender.length, 1));
                     snapshotsToRender.forEach((snap, idx) => {
                         const isLast = idx === snapshotsToRender.length - 1;
-                        const opacity = isLast ? 0.6 : 0.2 + 0.3 * (idx / Math.max(snapshotsToRender.length - 1, 1));
+                        const opacity = isLast ? 0.75 : 0.25 + 0.35 * (idx / Math.max(snapshotsToRender.length - 1, 1));
+                        const ptIdx = Math.min(Math.round(idx * snapshotEvery), inputs.length - 1);
+                        const bits = inputs[ptIdx] || 0;
+                        const color = inputColor(bits);
                         const carGeo = new THREE.BoxGeometry(1.8, 0.7, 3.5);
-                        const carMat = new THREE.MeshBasicMaterial({ color: 0x00ff44, transparent: true, opacity, depthTest: false });
+                        const carMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false });
                         const carMesh = new THREE.Mesh(carGeo, carMat);
                         carMesh.position.set(snap.pos.x, snap.pos.y, snap.pos.z);
                         if (snap.quat) carMesh.quaternion.set(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w);

@@ -7275,7 +7275,10 @@ function _applyItalicsSetting(enabled) {
                 e[e.ItalicsEnabled = 24] = "ItalicsEnabled",
                 e[e.OrbitCameraFov = 25] = "OrbitCameraFov",
                 e[e.CockpitCameraFov = 26] = "CockpitCameraFov",
-                e[e.DecimalSpeedometer = 27] = "DecimalSpeedometer"
+                e[e.DecimalSpeedometer = 27] = "DecimalSpeedometer",
+                e[e.GhostOpacity = 28] = "GhostOpacity",
+                e[e.CpOnlyNext = 29] = "CpOnlyNext",
+                e[e.CpTracer = 30] = "CpTracer"
             }(i || (i = {}));
             const r = i
         }
@@ -39027,7 +39030,7 @@ function _applyItalicsSetting(enabled) {
                 C.set(this, Le, e, "f"),
                 C.set(this, Ue, t, "f"),
                 C.set(this, Ge, t.getSettingBoolean(R.A.ImperialUnitsEnabled), "f"),
-                C.set(this, _decSpd, t.getSettingBoolean(R.A.DecimalSpeedometer), "f"),
+                C.set(this, _decSpd, parseInt(t.getSetting(R.A.DecimalSpeedometer) || "0", 10), "f"),
                 C.set(this, ze, document.createElement("div"), "f"),
                 "off" == t.getSetting(R.A.Speedometer) ? C.get(this, ze, "f").className = "speedometer-ui hidden" : "top" == t.getSetting(R.A.Speedometer) ? C.get(this, ze, "f").className = "speedometer-ui up" : C.get(this, ze, "f").className = "speedometer-ui",
                 C.get(this, Le, "f").appendChild(C.get(this, ze, "f")),
@@ -39065,14 +39068,15 @@ function _applyItalicsSetting(enabled) {
             showCheckpointSpeed(e, t) {
                 const n = Math.abs(e) - Math.abs(t);
                 let i, r;
-                i = C.get(this, Ge, "f") ? n / 1.609344 : n,
-                i = Math.abs(i) >= 1 ? Math.trunc(i) : Math.abs(i) >= .1 ? Math.trunc(10 * i) / 10 : Math.abs(i) >= .01 ? Math.trunc(100 * i) / 100 : Math.trunc(1e3 * i) / 1e3,
+                i = C.get(this, Ge, "f") ? n / 1.609344 : n;
+                const _dec = C.get(this, _decSpd, "f");
+                i = _dec === 3 ? (Math.trunc(i * 1000) / 1000) : _dec === 2 ? (Math.trunc(i * 100) / 100) : _dec === 1 ? (Math.trunc(i * 10) / 10) : Math.trunc(i);
                 r = C.get(this, Ge, "f") ? "mph" : "km/h",
                 i < 0 ? (C.get(this, Fe, "f").classList.add("red"),
                 C.get(this, Fe, "f").classList.remove("green"),
-                C.get(this, Fe, "f").textContent = i.toString() + " " + r) : (C.get(this, Fe, "f").classList.remove("red"),
+                C.get(this, Fe, "f").textContent = (_dec > 0 ? i.toFixed(_dec) : i.toString()) + " " + r) : (C.get(this, Fe, "f").classList.remove("red"),
                 C.get(this, Fe, "f").classList.add("green"),
-                C.get(this, Fe, "f").textContent = "+" + i.toString() + " " + r),
+                C.get(this, Fe, "f").textContent = "+" + (_dec > 0 ? i.toFixed(_dec) : i.toString()) + " " + r),
                 C.get(this, Oe, "f").push(C.get(this, Fe, "f").animate([{
                     opacity: 0,
                     transform: "translateX(20px)",
@@ -39102,7 +39106,7 @@ function _applyItalicsSetting(enabled) {
                 let n;
                 n = C.get(this, Ge, "f") ? t / 1.609344 : t;
                 const _decimal = C.get(this, _decSpd, "f");
-                const i = _decimal ? (Math.trunc(n * 10) / 10).toFixed(1) : Math.trunc(n).toString();
+                const i = _decimal === 3 ? (Math.trunc(n * 1000) / 1000).toFixed(3) : _decimal === 2 ? (Math.trunc(n * 100) / 100).toFixed(2) : _decimal === 1 ? (Math.trunc(n * 10) / 10).toFixed(1) : Math.trunc(n).toString();
                 if (i != C.get(this, Be, "f")) {
                     C.get(this, Ne, "f").innerHTML = "";
                     for (const e of i) {
@@ -41888,6 +41892,7 @@ function _applyItalicsSetting(enabled) {
                 window.__editorTrailData = {
                     points:    this.__editorTrail.points.slice(),
                     quats:     this.__editorTrail.quats.slice(),
+                    inputs:    this.__editorTrail.inputs.slice(),
                     snapshots: this.__editorTrail.snapshots.slice(),
                     carStyle:  C.get(this, wa, "f").getCarStyle(),
                     finalPos:  { x: _pos.x, y: _pos.y + 0.25, z: _pos.z },
@@ -41899,6 +41904,7 @@ function _applyItalicsSetting(enabled) {
             if (this.__editorTrail) {
                 this.__editorTrail.points = [];
                 this.__editorTrail.quats = [];
+                this.__editorTrail.inputs = [];
                 this.__editorTrail.snapshots = [];
                 this.__editorTrail.frameCounter = 0;
             }
@@ -42158,7 +42164,8 @@ function _applyItalicsSetting(enabled) {
             for (const n of t) {
                 const t = n.getPosition().distanceTo(e)
                   , i = Math.max(0, Math.min(1, t / 5));
-                n.setOpacity(C._ghostsHidden ? 0 : i)
+                const _ghostOpacity = parseFloat(C.get(this, Gr, "f").getSetting(R.A.GhostOpacity) || "1");
+                n.setOpacity(C._ghostsHidden ? 0 : i * _ghostOpacity)
             }
         }
         ,
@@ -42629,6 +42636,7 @@ function _applyItalicsSetting(enabled) {
                         this.__editorTrail = {
                             points: [],
                             quats: [],
+                            inputs: [],
                             snapshots: [],
                             frameCounter: 0,
                             sampleEvery: 3,
@@ -42836,6 +42844,7 @@ function _applyItalicsSetting(enabled) {
                         window.__editorTrailData = {
                             points: trail.points,
                             quats: trail.quats,
+                            inputs: trail.inputs,
                             snapshots: trail.snapshots,
                             carStyle: C.get(this, wa, "f").getCarStyle(),
                             finalPos: { x: pos.x, y: pos.y + 0.25, z: pos.z },
@@ -42878,6 +42887,8 @@ function _applyItalicsSetting(enabled) {
                         const q   = C.get(this, wa, "f").getQuaternion();
                         trail.points.push(pos.x, pos.y + 0.25, pos.z);
                         trail.quats.push(q.x, q.y, q.z, q.w);
+                        const _ctrl = C.get(this, ya, "f").getControls();
+                        trail.inputs.push((_ctrl.up ? 1 : 0) | (_ctrl.down ? 2 : 0) | (_ctrl.left ? 4 : 0) | (_ctrl.right ? 8 : 0));
                         if (trail.frameCounter % trail.snapshotEvery === 0) {
                             trail.snapshots.push({
                                 pos: { x: pos.x, y: pos.y + 0.25, z: pos.z },
@@ -42890,6 +42901,7 @@ function _applyItalicsSetting(enabled) {
                     C.get(this, wa, "f").audioVolume = 1),
                     C.get(this, wa, "f").isControlsDisabled = C.get(this, Ba, "f").isEnabled || C.get(this, _r, "m", Ha).call(this),
                     window.__getPlayerControls = () => C.get(this, ya, "f")?.getControls?.() ?? null,
+                    window.__getPlayerState = () => C.get(this, wa, "f") ?? null,
                     !C.get(this, Ba, "f").isEnabled && !C.get(this, _r, "m", Ha).call(this)) {
                         const e = C.get(this, ya, "f").getControls();
                         (e.up || e.down) && (C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").start()),
@@ -48897,7 +48909,7 @@ function _applyItalicsSetting(enabled) {
         }
         ps = new WeakMap;
         const gs = fs;
-        var ms, As, vs, ys, bs, ws, xs, Ss, ks, Es, Ts, Ms, _s, Cs, Rs, Ps, Is, Ls, Us, zs, Ns, Ds, Bs, Gs, Fs, Os, FovSlider;
+        var ms, As, vs, ys, bs, ws, xs, Ss, ks, Es, Ts, Ms, _s, Cs, Rs, Ps, Is, Ls, Us, zs, Ns, Ds, Bs, Gs, Fs, Os, FovSlider, RenderScaleInput;
         As = new WeakMap,
         vs = new WeakMap,
         ys = new WeakMap,
@@ -49012,6 +49024,16 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Enabled"),
                 value: "true"
             }], R.A.GhostCarEnabled),
+            C.get(this, ms, "m", Gs).call(this, "Ghost opacity", [{
+                title: "50%",
+                value: "0.5"
+            }, {
+                title: "100%",
+                value: "1"
+            }, {
+                title: "1000%",
+                value: "10"
+            }], R.A.GhostOpacity),
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Default camera"), [{
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Default"),
                 value: "false"
@@ -49058,12 +49080,18 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Top"),
                 value: "top"
             }], R.A.Speedometer),
-            C.get(this, ms, "m", Gs).call(this, "Decimal speedometer", [{
-                title: "Off",
-                value: "false"
+            C.get(this, ms, "m", Gs).call(this, "Speedometer decimals", [{
+                title: "0",
+                value: "0"
             }, {
-                title: "On",
-                value: "true"
+                title: "1",
+                value: "1"
+            }, {
+                title: "2",
+                value: "2"
+            }, {
+                title: "3",
+                value: "3"
             }], R.A.DecimalSpeedometer),
             C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Mobile")),
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Vibration"), [{
@@ -49137,22 +49165,7 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "On"),
                 value: "true"
             }], R.A.FogEnabled),
-            C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Render scale"), [{
-                title: "10%",
-                value: "0.10"
-            }, {
-                title: "25%",
-                value: "0.25"
-            }, {
-                title: "50%",
-                value: "0.5"
-            }, {
-                title: "75%",
-                value: "0.75"
-            }, {
-                title: "100%",
-                value: "1"
-            }], R.A.RenderScale),
+            C.get(this, ms, "m", RenderScaleInput).call(this),
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Screen Pixel Density"), [{
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Fixed"),
                 value: "false"
@@ -49177,6 +49190,20 @@ function _applyItalicsSetting(enabled) {
                 const _enabled = (C.get(this, Ps, "f").get(R.A.ItalicsEnabled) ?? "true") === "true";
                 _applyItalicsSetting(_enabled);
             }),
+            C.get(this, ms, "m", Gs).call(this, "Smart checkpoint labels", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.CpOnlyNext),
+            C.get(this, ms, "m", Gs).call(this, "Checkpoint tracer", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.CpTracer),
             C.get(this, ms, "m", Ds).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Audio")),
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Master volume"), R.A.MasterVolume),
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Sound effect volume"), R.A.SoundEffectVolume),
@@ -49402,6 +49429,56 @@ function _applyItalicsSetting(enabled) {
             numInput.addEventListener("keydown", (ev) => ev.stopPropagation());
             wrapper.appendChild(slider);
             wrapper.appendChild(numInput);
+            a.appendChild(wrapper);
+            C.get(this, ks, "f").appendChild(a)
+        }
+        ,
+        RenderScaleInput = function() {
+            const t = R.A.RenderScale;
+            const rawStored = C.get(this, Ps, "f").get(t) ?? C.get(this, bs, "f").getSetting(t);
+            let currentVal = parseFloat(rawStored);
+            if (isNaN(currentVal)) currentVal = 1;
+            const commit = (val) => {
+                val = Math.max(0.1, Math.min(4, Math.round(val * 100) / 100));
+                currentVal = val;
+                numInput.value = Math.round(val * 100).toString();
+                for (const b of presetBtns) b.className = b.dataset.val === val.toString() ? "button selected" : "button";
+                C.get(this, Ps, "f").set(t, val.toString()),
+                C.get(this, bs, "f").updateSettings(Array.from(C.get(this, Ps, "f")))
+            };
+            const a = document.createElement("div");
+            a.className = "setting";
+            const s = document.createElement("p");
+            s.textContent = gs.getFromLanguage(C.get(this, Cs, "f"), "Render scale"),
+            a.appendChild(s);
+            const wrapper = document.createElement("div");
+            wrapper.className = "button-wrapper";
+            wrapper.style.cssText = "flex-wrap:wrap;gap:6px;align-items:center;";
+            const presetBtns = [];
+            for (const {title, value} of [{title:"10%",value:"0.1"},{title:"25%",value:"0.25"},{title:"50%",value:"0.5"},{title:"75%",value:"0.75"},{title:"100%",value:"1"}]) {
+                const btn = document.createElement("button");
+                btn.className = parseFloat(value) === currentVal ? "button selected" : "button";
+                btn.dataset.val = parseFloat(value).toString();
+                btn.textContent = title;
+                btn.addEventListener("click", () => { C.get(this, vs, "f").playUIClick(); commit(parseFloat(value)); });
+                wrapper.appendChild(btn);
+                presetBtns.push(btn);
+            }
+            const numInput = document.createElement("input");
+            numInput.type = "text";
+            numInput.value = Math.round(currentVal * 100).toString();
+            numInput.style.cssText = "width:64px;font-size:22px;text-align:center;pointer-events:auto;";
+            const pct = document.createElement("span");
+            pct.textContent = "%";
+            pct.style.cssText = "font-size:22px;color:inherit;";
+            numInput.addEventListener("change", () => {
+                const v = parseFloat(numInput.value);
+                if (!isNaN(v) && v > 0) commit(v / 100);
+                else numInput.value = Math.round(currentVal * 100).toString();
+            });
+            numInput.addEventListener("keydown", (ev) => ev.stopPropagation());
+            wrapper.appendChild(numInput);
+            wrapper.appendChild(pct);
             a.appendChild(wrapper);
             C.get(this, ks, "f").appendChild(a)
         }
@@ -52070,9 +52147,9 @@ function _applyItalicsSetting(enabled) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://www.kodub.com",
+            t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
+            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.4.0a",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
@@ -55962,7 +56039,7 @@ function _applyItalicsSetting(enabled) {
                 null != n && C.get(this, Mu, "m", Pu).call(this, n)
             }
             defaultSettings() {
-                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "false"]])
+                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"]])
             }
             defaultKeyBindings() {
                 return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]]])
@@ -57577,12 +57654,54 @@ function _applyItalicsSetting(enabled) {
             let _cpLabelsVisible = false;
             const _cpLabelMeshes = [];
             const _cpLabelTextures = [];
+            let _cpLabelRafId = null;
+            let _cpLabelLastNextIdx = -1;
+
+            let _cpTracerLine = null;
+            let _cpTracerTargetPos = null;
+
+            const _getCpOnlyNextSetting = () => {
+                try {
+                    const raw = localStorage.getItem("polytrack_v5_prod_settings");
+                    if (raw) {
+                        const arr = JSON.parse(raw);
+                        for (const pair of arr) {
+                            if (pair[0] === "CpOnlyNext") return pair[1] === "true";
+                        }
+                    }
+                } catch(_e) {}
+                return false;
+            };
+
+            const _getCpTracerSetting = () => {
+                try {
+                    const raw = localStorage.getItem("polytrack_v5_prod_settings");
+                    if (raw) {
+                        const arr = JSON.parse(raw);
+                        for (const pair of arr) {
+                            if (pair[0] === "CpTracer") return pair[1] === "true";
+                        }
+                    }
+                } catch(_e) {}
+                return false;
+            };
+
+            const _clearCpTracer = () => {
+                if (_cpTracerLine) {
+                    h.scene.remove(_cpTracerLine);
+                    _cpTracerLine.geometry.dispose();
+                    _cpTracerLine.material.dispose();
+                    _cpTracerLine = null;
+                }
+                _cpTracerTargetPos = null;
+            };
 
             const _clearCpLabels = () => {
                 for (const m of _cpLabelMeshes) { h.scene.remove(m); m.geometry.dispose(); }
                 for (const t of _cpLabelTextures) t.dispose();
                 _cpLabelMeshes.length = 0;
                 _cpLabelTextures.length = 0;
+                _clearCpTracer();
             };
 
             const _makeLabelTexture = (text) => {
@@ -57608,7 +57727,11 @@ function _applyItalicsSetting(enabled) {
                 try {
                     const checkpoints = v.getCheckpoints();
                     const partSize    = Track.A.partSize;
+                    const onlyNext    = _getCpOnlyNextSetting();
+                    const _playerState = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
+                    const nextIdx     = onlyNext ? (_playerState && typeof _playerState.getNextCheckpointIndex === "function" ? _playerState.getNextCheckpointIndex() : 0) : -1;
                     for (const n of checkpoints) {
+                        if (onlyNext && n.checkpointOrder !== nextIdx) continue;
                         const q   = _rotAxisTable[n.rotationAxis][n.rotation].clone();
                         const pos = new THREE.Vector3(...n.detector.center)
                             .add(new THREE.Vector3(0, 1.2, 0))
@@ -57628,14 +57751,79 @@ function _applyItalicsSetting(enabled) {
                         h.scene.add(mesh);
                         _cpLabelMeshes.push(mesh);
                         _cpLabelTextures.push(tex);
+
+                        if (n.checkpointOrder === (nextIdx >= 0 ? nextIdx : 0)) {
+                            _cpTracerTargetPos = pos.clone();
+                        }
+                    }
+                    if (!onlyNext && _cpTracerTargetPos === null) {
+                        const _ps2 = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
+                        const _ni  = _ps2 && typeof _ps2.getNextCheckpointIndex === "function" ? _ps2.getNextCheckpointIndex() : 0;
+                        for (const n of checkpoints) {
+                            if (n.checkpointOrder === _ni) {
+                                const q2   = _rotAxisTable[n.rotationAxis][n.rotation].clone();
+                                const pos2 = new THREE.Vector3(...n.detector.center).applyQuaternion(q2);
+                                pos2.add(new THREE.Vector3(n.x * partSize, n.y * partSize, n.z * partSize));
+                                _cpTracerTargetPos = pos2.clone();
+                                break;
+                            }
+                        }
                     }
                 } catch(_e) { console.warn("Checkpoint labels error:", _e); }
             };
 
             const _toggleCpLabels = () => {
                 _cpLabelsVisible = !_cpLabelsVisible;
-                if (_cpLabelsVisible) _buildCpLabels();
-                else _clearCpLabels();
+                if (_cpLabelRafId != null) { cancelAnimationFrame(_cpLabelRafId); _cpLabelRafId = null; }
+                if (_cpLabelsVisible) {
+                    _cpLabelLastNextIdx = -1;
+                    _buildCpLabels();
+                    const _cpLabelLoop = () => {
+                        if (!_cpLabelsVisible) return;
+                        const _ps = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
+                        if (_getCpOnlyNextSetting()) {
+                            try {
+                                const idx = _ps && typeof _ps.getNextCheckpointIndex === "function" ? _ps.getNextCheckpointIndex() : 0;
+                                if (idx !== _cpLabelLastNextIdx) {
+                                    _cpLabelLastNextIdx = idx;
+                                    _buildCpLabels();
+                                }
+                            } catch(_e) {}
+                        }
+                        if (_getCpTracerSetting() && _cpTracerTargetPos && _ps) {
+                            try {
+                                const carPos = typeof _ps.getPosition === "function" ? _ps.getPosition() : null;
+                                if (carPos) {
+                                    if (_cpTracerLine) {
+                                        h.scene.remove(_cpTracerLine);
+                                        _cpTracerLine.geometry.dispose();
+                                        _cpTracerLine.material.dispose();
+                                        _cpTracerLine = null;
+                                    }
+                                    const _tracerDir = new THREE.Vector3().subVectors(_cpTracerTargetPos, carPos);
+                                    const _tracerLen = _tracerDir.length();
+                                    const _tracerDirN = _tracerDir.clone().normalize();
+                                    const _tracerStart = carPos.clone().addScaledVector(_tracerDirN, 1.2);
+                                    const _tracerAdjLen = Math.max(0, _tracerLen - 1.2);
+                                    const _tracerMid = new THREE.Vector3().addVectors(_tracerStart, _cpTracerTargetPos).multiplyScalar(0.5);
+                                    const _tracerGeo = new THREE.BoxGeometry(0.15, 0.15, _tracerAdjLen);
+                                    const _tracerMat = new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.7, depthTest: false });
+                                    _cpTracerLine = new THREE.Mesh(_tracerGeo, _tracerMat);
+                                    _cpTracerLine.position.copy(_tracerMid);
+                                    _cpTracerLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _tracerDirN);
+                                    _cpTracerLine.renderOrder = 1001;
+                                    h.scene.add(_cpTracerLine);
+                                }
+                            } catch(_e) {}
+                        } else if (!_getCpTracerSetting() && _cpTracerLine) {
+                            _clearCpTracer();
+                        }
+                        _cpLabelRafId = requestAnimationFrame(_cpLabelLoop);
+                    };
+                    _cpLabelRafId = requestAnimationFrame(_cpLabelLoop);
+                } else {
+                    _clearCpLabels();
+                }
             };
            
 
@@ -57706,6 +57894,8 @@ function _applyItalicsSetting(enabled) {
 
   window.addEventListener("keydown", function(e) {
     if (!ui) return;
+    var focused = document.activeElement;
+    if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable)) return;
     var keys = getToggleKeys();
     if (keys.indexOf(e.code) !== -1) {
       overlayHidden = !overlayHidden;
