@@ -1056,7 +1056,7 @@
                 _trailColorToggle.textContent = _trailColorOn ? "On" : "Off";
                 _trailColorRow.appendChild(_trailColorToggle);
                 _trailColorDiv.appendChild(_trailColorRow);
-                // per-colour toggles
+                
                 const _trailColorDefs = [
                     { key: "editorTrailColorAccel",       label: "Accelerating",        defaultColor: "#00ff44" },
                     { key: "editorTrailColorBrake",        label: "Braking",             defaultColor: "#ff2222" },
@@ -1075,7 +1075,7 @@
                     const swatch = document.createElement("span");
                     swatch.style.cssText = "display:inline-block;width:24px;height:24px;border-radius:3px;background:" + savedColor + ";flex-shrink:0;cursor:pointer;border:2px solid var(--surface-tertiary-color);";
                     swatch.title = "Click to change colour";
-                    // inline popover with hue/lightness sliders + hex input
+            
                     const popover = document.createElement("div");
                     popover.style.cssText = "display:none;flex-direction:column;gap:8px;margin-top:6px;padding:10px;background:var(--surface-secondary-color);border:1px solid var(--surface-tertiary-color);border-radius:4px;";
                     const hexInput = document.createElement("input");
@@ -1150,7 +1150,7 @@
                     swatch.addEventListener("click", (e) => {
                         e.stopPropagation();
                         const open = popover.style.display === "flex";
-                        // close all other popovers
+                    
                         _trailColorSubDiv.querySelectorAll(".tc-popover").forEach(p => p.style.display = "none");
                         popover.style.display = open ? "none" : "flex";
                     });
@@ -1174,7 +1174,7 @@
                     _trailColorSubDiv.appendChild(row);
                     _trailColorSubDiv.appendChild(popover);
                 });
-                // smart fallback toggle
+           
                 const _trailFallbackRow = document.createElement("div");
                 _trailFallbackRow.style.cssText = "display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:10px;border-top:1px solid var(--surface-tertiary-color);";
                 const _trailFallbackLbl = document.createElement("span");
@@ -3507,7 +3507,7 @@
 
                     const group = new THREE.Group();
 
-                    // input bit flags: up=1, down=2, left=4, right=8
+                  
                     const INPUT_ACCEL  = 1;
                     const INPUT_BRAKE  = 2;
                     const INPUT_LEFT   = 4;
@@ -3569,7 +3569,7 @@
                         vectors.push(new THREE.Vector3(pts[i], pts[i+1], pts[i+2]));
                     }
 
-                    // draw coloured line segments grouped by input state
+               
                     if (vectors.length >= 2) {
                         let segStart = 0;
                         let segBits  = inputs[0] || 0;
@@ -3600,7 +3600,7 @@
                         flushSeg(vectors.length - 1);
                     }
 
-                    // snapshot boxes coloured by nearest point's input
+                  
                     const snapshotsToRender = (data.snapshots && data.snapshots.length > 0)
                         ? [...data.snapshots, data.finalPos ? { pos: data.finalPos, quat: data.finalQuat } : null].filter(Boolean)
                         : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
