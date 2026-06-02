@@ -86,7 +86,8 @@
         o()(editorStyles, editorStylesConfig);
         editorStyles && editorStyles.locals && editorStyles.locals;
         var THREE = n(4922)
-          , OrbitControls = n(7024).N;
+          , OrbitControls = n(7024).N
+          , VisualCar = n(4078).A;
         class EditorOrbitControls extends OrbitControls {
             constructor(t, e) {
                 super(t, e),
@@ -1200,6 +1201,51 @@
                     _trailColorToggle.textContent = now ? "Off" : "On";
                     _trailColorSubDiv.style.display = now ? "none" : "block";
                 });
+                const _trailOpacityDiv = document.createElement("div");
+                _trailOpacityDiv.className = "setting",
+                f.appendChild(_trailOpacityDiv);
+                const _trailOpacityLabel = document.createElement("label");
+                _trailOpacityLabel.className = "title";
+                const _trailOpacityStoredVal = parseInt(localStorage.getItem("editorTrailOpacity") ?? "50", 10);
+                const _trailOpacityPercent = isNaN(_trailOpacityStoredVal) ? 50 : Math.max(0, Math.min(100, _trailOpacityStoredVal));
+                const _trailOpacityDisplay = document.createTextNode(String(_trailOpacityPercent) + "%");
+                _trailOpacityLabel.append(document.createTextNode("Ghost transparency: "), _trailOpacityDisplay);
+                _trailOpacityDiv.appendChild(_trailOpacityLabel);
+                const _trailOpacitySlider = document.createElement("input");
+                _trailOpacitySlider.type = "range";
+                _trailOpacitySlider.min = "0";
+                _trailOpacitySlider.max = "100";
+                _trailOpacitySlider.step = "1";
+                _trailOpacitySlider.value = String(_trailOpacityPercent);
+                _trailOpacitySlider.style.cssText = "margin-top:10px;width:100%;";
+                _trailOpacitySlider.addEventListener("input", () => {
+                    _trailOpacityDisplay.textContent = _trailOpacitySlider.value + "%";
+                    localStorage.setItem("editorTrailOpacity", _trailOpacitySlider.value);
+                });
+                _trailOpacityDiv.appendChild(_trailOpacitySlider);
+
+                const _trailXrayDiv = document.createElement("div");
+                _trailXrayDiv.className = "setting",
+                f.appendChild(_trailXrayDiv);
+                const _trailXrayLabel = document.createElement("label");
+                _trailXrayLabel.className = "title";
+                _trailXrayLabel.textContent = "Trail visible through walls";
+                _trailXrayDiv.appendChild(_trailXrayLabel);
+                const _trailXrayRow = document.createElement("div");
+                _trailXrayRow.style.cssText = "display:flex;align-items:center;gap:16px;margin-top:10px;";
+                const _trailXrayToggle = document.createElement("button");
+                const _trailXrayOn = localStorage.getItem("editorTrailXray") !== "0";
+                _trailXrayToggle.className = "button";
+                _trailXrayToggle.style.cssText = "font-size:24px;padding:8px 24px;";
+                _trailXrayToggle.textContent = _trailXrayOn ? "On" : "Off";
+                _trailXrayToggle.addEventListener("click", () => {
+                    const now = localStorage.getItem("editorTrailXray") !== "0";
+                    localStorage.setItem("editorTrailXray", now ? "0" : "1");
+                    _trailXrayToggle.textContent = now ? "Off" : "On";
+                });
+                _trailXrayRow.appendChild(_trailXrayToggle);
+                _trailXrayDiv.appendChild(_trailXrayRow);
+
                 const _autoSaveDiv = document.createElement("div");
                 _autoSaveDiv.className = "setting",
                 f.appendChild(_autoSaveDiv);
@@ -3513,6 +3559,8 @@
                     const INPUT_LEFT   = 4;
                     const INPUT_RIGHT  = 8;
                     const _trailColorsEnabled = localStorage.getItem("editorTrailColors") === "1";
+                    const _trailOpacityMult = Math.max(0, Math.min(100, parseInt(localStorage.getItem("editorTrailOpacity") ?? "50", 10) || 50)) / 100;
+                    const _trailXray = localStorage.getItem("editorTrailXray") !== "0";
 
                     const _colorEnabled = {
                         accel:      localStorage.getItem("editorTrailColorAccel")     !== "0",
@@ -3580,9 +3628,9 @@
                             const lineGeo = new THREE.BufferGeometry().setFromPoints(segPts);
                             const lineMat = new THREE.LineBasicMaterial({
                                 color: inputColor(segBits),
-                                transparent: true,
-                                opacity: 0.85,
-                                depthTest: false
+                                transparent: _trailOpacityMult < 1,
+                                opacity: 0.85 * _trailOpacityMult,
+                                depthTest: !_trailXray
                             });
                             const line = new THREE.Line(lineGeo, lineMat);
                             line.renderOrder = 998;
@@ -3605,22 +3653,117 @@
                         ? [...data.snapshots, data.finalPos ? { pos: data.finalPos, quat: data.finalQuat } : null].filter(Boolean)
                         : (data.finalPos ? [{ pos: data.finalPos, quat: data.finalQuat }] : []);
                     const snapshotEvery = Math.round(vectors.length / Math.max(snapshotsToRender.length, 1));
-                    snapshotsToRender.forEach((snap, idx) => {
-                        const isLast = idx === snapshotsToRender.length - 1;
-                        const opacity = isLast ? 0.75 : 0.25 + 0.35 * (idx / Math.max(snapshotsToRender.length - 1, 1));
-                        const ptIdx = Math.min(Math.round(idx * snapshotEvery), inputs.length - 1);
-                        const bits = inputs[ptIdx] || 0;
-                        const color = inputColor(bits);
-                        const carGeo = new THREE.BoxGeometry(1.8, 0.7, 3.5);
-                        const carMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false });
-                        const carMesh = new THREE.Mesh(carGeo, carMat);
-                        carMesh.position.set(snap.pos.x, snap.pos.y, snap.pos.z);
-                        if (snap.quat) carMesh.quaternion.set(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w);
-                        carMesh.renderOrder = 999;
-                        carMesh.frustumCulled = false;
-                        group.add(carMesh);
-                    });
 
+                 
+                    const _carVerts = VisualCar && VisualCar.models && VisualCar.models.collisionShapeVertices;
+                    const _massOffset = (VisualCar && VisualCar.massOffset) || 0;
+                    if (_carVerts && _carVerts.length >= 9) {
+                        const _flatVerts = Float32Array.from(_carVerts.flat ? _carVerts.flat() : _carVerts);
+                        const _vertCount = _flatVerts.length / 3;
+
+       
+                        const _round = n => Math.round(n * 1e5) / 1e5;
+                        const _vKey = i => `${_round(_flatVerts[i*3])},${_round(_flatVerts[i*3+1])},${_round(_flatVerts[i*3+2])}`;
+                        const _indexToUnique = new Int32Array(_vertCount);
+                        const _seenV = new Map();
+                        for (let i = 0; i < _vertCount; i++) {
+                            const k = _vKey(i);
+                            if (!_seenV.has(k)) _seenV.set(k, _seenV.size);
+                            _indexToUnique[i] = _seenV.get(k);
+                        }
+
+              
+                        const _readV = i => new THREE.Vector3(_flatVerts[i*3], _flatVerts[i*3+1], _flatVerts[i*3+2]);
+                        const _triNormals = [];
+                        for (let t = 0; t < _vertCount; t += 3) {
+                            const a = _readV(t), b = _readV(t+1), c = _readV(t+2);
+                            _triNormals.push(b.sub(a).cross(c.sub(a)).normalize());
+                        }
+
+            
+                        const _edgeMap = new Map();
+                        for (let t = 0; t < _vertCount; t += 3) {
+                            for (let e = 0; e < 3; e++) {
+                                const ea = t + e, eb = t + (e + 1) % 3;
+                                const ua = _indexToUnique[ea], ub = _indexToUnique[eb];
+                                const key = ua < ub ? `${ua}|${ub}` : `${ub}|${ua}`;
+                                let bucket = _edgeMap.get(key);
+                                if (!bucket) { bucket = { a: ea, b: eb, tris: [] }; _edgeMap.set(key, bucket); }
+                                bucket.tris.push(t / 3);
+                            }
+                        }
+                        const COPLANAR_EPS = 0.9995;
+                        const _silhouetteEdges = [];
+                        for (const { a, b, tris } of _edgeMap.values()) {
+                            let isCrease = tris.length === 1;
+                            for (let i = 0; i < tris.length && !isCrease; i++) {
+                                for (let j = i + 1; j < tris.length && !isCrease; j++) {
+                                    if (Math.abs(_triNormals[tris[i]].dot(_triNormals[tris[j]])) < COPLANAR_EPS) isCrease = true;
+                                }
+                            }
+                            if (isCrease) _silhouetteEdges.push([a, b]);
+                        }
+
+                        const _tmpMatrix = new THREE.Matrix4();
+                        const _tmpScale = new THREE.Vector3(1, 1, 1);
+                        const _tmpVec = new THREE.Vector3();
+
+                        snapshotsToRender.forEach((snap, idx) => {
+                            const isLast = idx === snapshotsToRender.length - 1;
+                            const opacity = isLast ? 0.75 : 0.25 + 0.35 * (idx / Math.max(snapshotsToRender.length - 1, 1));
+                            const ptIdx = Math.min(Math.round(idx * snapshotEvery), inputs.length - 1);
+                            const bits = inputs[ptIdx] || 0;
+                            const color = inputColor(bits);
+
+                            const snapPos = new THREE.Vector3(snap.pos.x, snap.pos.y, snap.pos.z);
+                            const snapQuat = snap.quat
+                                ? new THREE.Quaternion(snap.quat.x, snap.quat.y, snap.quat.z, snap.quat.w)
+                                : new THREE.Quaternion();
+                            _tmpMatrix.compose(snapPos, snapQuat, _tmpScale);
+
+                    
+                            const _wVerts = new Float32Array(_flatVerts.length);
+                            for (let i = 0; i < _vertCount; i++) {
+                                _tmpVec.set(_flatVerts[i*3], _flatVerts[i*3+1], _flatVerts[i*3+2]).applyMatrix4(_tmpMatrix);
+                                _wVerts[i*3] = _tmpVec.x; _wVerts[i*3+1] = _tmpVec.y; _wVerts[i*3+2] = _tmpVec.z;
+                            }
+
+                          
+                            const _edgeVec3 = [];
+                            for (const [ea, eb] of _silhouetteEdges) {
+                                _edgeVec3.push(new THREE.Vector3(_wVerts[ea*3], _wVerts[ea*3+1], _wVerts[ea*3+2]));
+                                _edgeVec3.push(new THREE.Vector3(_wVerts[eb*3], _wVerts[eb*3+1], _wVerts[eb*3+2]));
+                            }
+                            const _lineGeom = new THREE.BufferGeometry().setFromPoints(_edgeVec3);
+                            const _lineMesh = new THREE.LineSegments(_lineGeom, new THREE.LineBasicMaterial({
+                                color,
+                                transparent: _trailOpacityMult < 1,
+                                opacity: opacity * 0.9 * _trailOpacityMult,
+                                depthTest: !_trailXray,
+                            }));
+                            _lineMesh.renderOrder = 999;
+                            _lineMesh.frustumCulled = false;
+                            group.add(_lineMesh);
+
+
+                            const _faceVec3 = [];
+                            for (let _fi = 0; _fi < _vertCount; _fi++) {
+                                _faceVec3.push(new THREE.Vector3(_wVerts[_fi*3], _wVerts[_fi*3+1], _wVerts[_fi*3+2]));
+                            }
+                            const _faceGeom = new THREE.BufferGeometry().setFromPoints(_faceVec3);
+                            const _faceMesh = new THREE.Mesh(_faceGeom, new THREE.MeshBasicMaterial({
+                                color,
+                                transparent: _trailOpacityMult < 1,
+                                opacity: opacity * 0.18 * _trailOpacityMult,
+                                side: THREE.DoubleSide,
+                                depthTest: !_trailXray,
+                                depthWrite: false,
+                            }));
+                            _faceMesh.renderOrder = 998;
+                            _faceMesh.frustumCulled = false;
+                            group.add(_faceMesh);
+                        });
+                    }
                     get(this, editor_renderer, "f").scene.add(group);
                     this.__editorTrailGroup = group;
                     window.__editorTrailData = null;
