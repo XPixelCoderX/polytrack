@@ -4216,7 +4216,7 @@ function _applyItalicsSetting(enabled) {
             }
             ,
             f.defaultNickname = "Anonymous",
-            f.maxNumberOfProfiles = 3;
+            f.maxNumberOfProfiles = 6;
             const g = f
         }
         ,
@@ -57860,7 +57860,7 @@ function _applyItalicsSetting(enabled) {
   window.Worker.prototype = OriginalWorker.prototype;
 
   window.__setSimSpeed = function(speed) {
-    currentSpeed = speed;
+    currentSpeed = Math.max(1, speed);
     window.__ppvWorkers.forEach(function(w) {
       w.postMessage({ messageType: "ppvSetSpeed", speed: currentSpeed });
     });
