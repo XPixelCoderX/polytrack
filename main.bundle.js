@@ -8829,9 +8829,17 @@ function _applyItalicsSetting(enabled) {
                                 })),
                                 e._folderTracksDiv = _tracksDiv
                             } else {
-                                n.className = "group-title",
-                                n.textContent = t,
-                                e.appendChild(n)
+                                n.className = "group-title community-folder",
+                                n.textContent = t;
+                                const _commTracksDiv = document.createElement("div");
+                                _commTracksDiv.className = "folder-tracks";
+                                e.appendChild(n),
+                                e.appendChild(_commTracksDiv),
+                                n.addEventListener("click", () => {
+                                    n.classList.toggle("collapsed");
+                                    _commTracksDiv.classList.toggle("collapsed");
+                                }),
+                                e._folderTracksDiv = _commTracksDiv
                             }
                         } else {
                             switch (t) {
@@ -8865,12 +8873,22 @@ function _applyItalicsSetting(enabled) {
                                 s = "images/desert_colored.svg"
                             }
                             const o = document.createElement("div");
-                            o.className = "group-title " + n,
+                            o.className = "group-title community-group " + n,
                             o.textContent = a,
                             e.appendChild(o);
                             const l = document.createElement("img");
                             l.src = s,
-                            o.prepend(l)
+                            o.prepend(l);
+                            const _commTracksDiv = document.createElement("div");
+                            _commTracksDiv.className = "folder-tracks";
+                            e.appendChild(_commTracksDiv);
+                            o.style.cursor = "pointer";
+                            o.style.userSelect = "none";
+                            o.addEventListener("click", () => {
+                                o.classList.toggle("collapsed");
+                                _commTracksDiv.classList.toggle("collapsed");
+                            });
+                            e._folderTracksDiv = _commTracksDiv
                         }
                     (e._folderTracksDiv || e).appendChild(c)
                 }
@@ -9054,6 +9072,8 @@ function _applyItalicsSetting(enabled) {
             })();
 
             
+            let _trackIdToCode = {};
+
             function _showFolderManagerPanel(tracksContainer, refreshCallback) {
                 
                 document.querySelector('.custom-folder-manager-panel')?.remove();
@@ -9106,6 +9126,31 @@ function _applyItalicsSetting(enabled) {
                             }
                         });
                         row.appendChild(renameBtn);
+
+                        const exportBtn = document.createElement('button');
+                        exportBtn.className = 'cfm-btn';
+                        exportBtn.innerHTML = '<img src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27white%27%3E%3Cpath d=%27M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z%27/%3E%3C/svg%3E" style="width:1em;height:1em;vertical-align:middle;pointer-events:none">';
+                        exportBtn.title = 'Copy track codes to clipboard';
+                        exportBtn.addEventListener('click', () => {
+                            const d = JSON.parse(localStorage.getItem('customTrackFolders')) || {assignments:{}};
+                            const codes = Object.entries(d.assignments)
+                                .filter(([, f]) => f === folder)
+                                .map(([id]) => _trackIdToCode[id])
+                                .filter(Boolean);
+                            if (codes.length === 0) {
+                                exportBtn.textContent = 'Empty!';
+                                setTimeout(() => { exportBtn.innerHTML = '<img src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27white%27%3E%3Cpath d=%27M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z%27/%3E%3C/svg%3E" style="width:1em;height:1em;vertical-align:middle;pointer-events:none">'; }, 1500);
+                                return;
+                            }
+                            const blob = new Blob([codes.join('\n')], {type: 'text/plain'});
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = folder + '.txt';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        });
+                        row.appendChild(exportBtn);
 
                         const deleteBtn = document.createElement('button');
                         deleteBtn.className = 'cfm-btn cfm-btn-delete';
@@ -9646,6 +9691,14 @@ function _applyItalicsSetting(enabled) {
                         i.get(this, S, "f").forEachCustomTrack(((e, t, n, r, saveTime, env) => {
                             _allTracks.push({id: e, meta: t, trackData: n, thumb: r, saveTime, env: (env !== undefined && env !== null) ? env : n.environment});
                         }));
+                        const _KEY_PREFIX_EXPORT = "polytrack_v5_prod_track_";
+                        _trackIdToCode = {};
+                        _allTracks.forEach(tr => {
+                            try {
+                                const raw = localStorage.getItem(_KEY_PREFIX_EXPORT + tr.meta.name);
+                                if (raw) { const p = JSON.parse(raw); if (p?.data) _trackIdToCode[tr.id] = p.data; }
+                            } catch {}
+                        });
                         
                         const _sort = _customFolders.getSort();
                         if (_sort === "az") _allTracks.sort((a,b) => a.meta.name.localeCompare(b.meta.name));
@@ -28486,7 +28539,7 @@ function _applyItalicsSetting(enabled) {
               , p = l()(c)
               , f = l()(h)
               , g = l()(d);
-            u.push([e.id, `.track-selection-ui {\n\tposition: absolute;\n\tbottom: 0;\n\tdisplay: flex;\n\tflex-direction: column;\n\twidth: 100%;\n\theight: 100%;\n\toverflow: hidden;\n\ttext-align: left;\n}\n.track-selection-ui.hidden {\n\tdisplay: none;\n}\n\n.track-selection-ui > .safe-area-left {\n\tposition: absolute;\n\tleft: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-left);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .safe-area-right {\n\tposition: absolute;\n\tright: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-right);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .bar {\n\tdisplay: flex;\n\tmargin: 0;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\twidth: 100%;\n\tbox-sizing: border-box;\n\tbackground-color: var(--surface-color);\n\ttext-align: left;\n\n\tpointer-events:auto;\n}\n.track-selection-ui > .bar > .button {\n\tmargin: 8px 12px;\n}\n\n.track-selection-ui > .bar > .search-bar-container {\n\tposition: relative;\n\tdisplay: flex;\n\tflex-grow: 1;\n}\n.track-selection-ui > .bar > .search-bar-container > input {\n\tmargin: 8px -10px;\n\tpadding: 0 20px;\n\tflex-grow: 1;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tcolor: var(--text-color);\n\ttext-indent: 2px; /* Without this the italic text will be cut off on the left side. */\n}\n.track-selection-ui > .bar > .search-bar-container > img {\n\tmargin: 8px -10px 8px 0;\n\tpadding: 0 16px;\n\twidth: 24px;\n\tbackground-color: var(--button-hover-color);\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n\n.track-selection-ui .category-container {\n\tdisplay: flex;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .category-container > button {\n\tposition: relative;\n\tmargin: 0 -3px;\n\tpadding: 0.6em 0;\n\tflex-grow: 1;\n\tbackground-color: transparent;\n\tfont-size: 2.8vw;\n\tfont-weight: bold;\n\ttext-shadow: 2px 2px 0 #112052, 0 0 10px #000, 0 0 10px #000;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:first-of-type {\n\tclip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:last-of-type {\n\tclip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);\n}\n.track-selection-ui .category-container > button::before {\n\tcontent: "";\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-position: center;\n\tbackground-size: cover;\n\tfilter: blur(2px);\n\ttransition: filter 0.2s ease-in-out,  0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button.official::before {\n\tbackground-image: url(${p});\n}\n.track-selection-ui .category-container > button.community::before {\n\tbackground-image: url(${f});\n}\n.track-selection-ui .category-container > button.custom::before {\n\tbackground-image: url(${g});\n}\n.track-selection-ui .category-container > button:hover::before {\n\tfilter: none;\n\ttransform: scale(1.1);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover::before {\n\t\tfilter: blur(2px);\n\t\ttransform: none;\n\t}\n\n\t.track-selection-ui .category-container > button:active::before {\n\t\tfilter: none;\n\t\ttransform: scale(1.1);\n\t}\n}\n.track-selection-ui .category-container > button.selected::before {\n\tfilter: none;\n}\n.track-selection-ui .category-container > button::after {\n\tbackground-color: transparent;\n}\n.track-selection-ui .category-container > button.selected::after {\n\twidth: 100%;\n}\n\n.track-selection-ui .category-container > button > .cover {\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-color: rgba(17, 32, 82, 0.75);\n\ttransition: background-color 0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button:hover > .cover {\n\tbackground-color: rgba(51, 75, 119, 0.5);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover > .cover {\n\t\tbackground-color: rgba(17, 32, 82, 0.75);\n\t}\n}\n.track-selection-ui .category-container > button:active > .cover {\n\tbackground-color: rgba(21, 31, 65, 0.5);\n}\n.track-selection-ui .category-container > button.selected > .cover {\n\tbackground-color: transparent;\n}\n\n@media (max-width: 1150px) {\n\t.track-selection-ui .category-container > button {\n\t\tfont-size: 32.2px;\n\t}\n}\n\n.track-selection-ui .tracks-container {\n\tmargin: 0;\n\tpadding: 20px calc(60px + var(--safe-area-right)) 20px calc(60px + var(--safe-area-left));\n\tbox-sizing: border-box;\n\twidth: 100%;\n\tflex-grow: 1;\n\toverflow-y: auto;\n\tpointer-events: auto;\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.open {\n\tdisplay: block;\n}\n.track-selection-ui.with-background .tracks-container {\n\tbackground-color: var(--surface-overlay-color);\n\t-webkit-backdrop-filter: blur(4px);\n\tbackdrop-filter: blur(4px);\n}\n\n.track-selection-ui .tracks-container.no-group-containers {\n\tpadding-top: 50px;\n}\n\n.track-selection-ui .group-title.custom-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.custom-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.custom-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .folder-tracks.collapsed {\n\tdisplay: none;\n}\n\n.track-selection-ui .tracks-container > .empty {\n\tmargin: 100px;\n\tcolor: var(--text-color);\n\ttext-align: center;\n}\n.track-selection-ui .tracks-container > .empty > .title {\n\tfont-size: 48px;\n}\n.track-selection-ui .tracks-container > .empty > .description {\n\tmargin: 20px 0 0 0;\n\tfont-size: 32px;\n\topacity: 0.75;\n}\n\n.track-selection-ui .group-title {\n\tmargin: 0.5em 0.4em;\n\tpadding: 0;\n\tfont-size: 50px;\n\tfont-weight: normal;\n\tborder-bottom-width: 4px;\n\tborder-bottom-style: solid;\n\tcolor: var(--text-color);\n\tborder-image: linear-gradient(to right, var(--text-color), transparent) 1;\n\t\n}\n.track-selection-ui .group-title.winter {\n\tcolor: #bed8f7;\n\tborder-image: linear-gradient(to right, #bed8f7, transparent) 1;\n}\n.track-selection-ui .group-title.desert {\n\tcolor: #ede2af;\n\tborder-image: linear-gradient(to right, #ede2af, transparent) 1;\n}\n\n.track-selection-ui .group-title > img {\n\tmargin: 6px 8px;\n\twidth: 36px;\n\theight: 36px;\n\tvertical-align: bottom;\n}\n\n.track-selection-ui .tracks-container .track {\n\tposition: relative;\n\tdisplay: inline-block;\n}\n\n.track-selection-ui .tracks-container .track button {\n\tmargin: 10px;\n\tpadding: 0;\n\tcolor: var(--text-color);\n\tfont-size: 32px;\n}\n.track-selection-ui .tracks-container .track button:after {\n\tborder-bottom: none;\n}\n.track-selection-ui .tracks-container .track button:focus-visible {\n\ttext-decoration: none;\n}\n\n.track-selection-ui .track-title {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 25px;\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .tracks-container .track button:focus-visible .track-title {\n\ttext-decoration: underline;\n}\n.track-selection-ui .track-title > p {\n\tmargin: 0;\n\tpadding: 0 22px;\n\twidth: 208px;\n\tbox-sizing: border-box;\n\twhite-space: nowrap;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n}\n\n.track-selection-ui .track > .button > canvas, .track-selection-ui .track > .button > img:not(.environment) {\n\tmargin: 0;\n\tpadding: 20px 40px;\n\twidth: 128px;\n\theight: 128px;\n\tobject-fit: contain;\n\t-webkit-filter: drop-shadow(0 0 3px #000);\n\tfilter: drop-shadow(0 0 3px #000);\n\timage-rendering: pixelated;\n\tpointer-events: none;\n}\n.track-selection-ui .track > .button > img:not(.environment) {\n\ttransition: opacity 0.25s ease-out;\n}\n.track-selection-ui .track > .button > img:not(.environment).loading {\n\topacity: 0;\n}\n\n.track-selection-ui .track .environment {\n\tposition: absolute;\n\tright: 14px;\n\tbottom: 40px;\n\twidth: 24px;\n\topacity: 0.2;\n\tpointer-events: none;\n}\n\n.track-selection-ui .record {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 24px;\n\tbackground-color: var(--surface-secondary-color);\n\tcolor: var(--text-color);\n}\n\n.track-selection-ui .delete-button {\n\tposition: absolute;\n\ttop: 7px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.track-selection-ui .delete-button:hover {\n\tbackground-color: var(--button-hover-color);\n}\n@media (hover: none) {\n\t.track-selection-ui .delete-button:hover {\n\t\tbackground-color: var(--button-color);\n\t}\n}\n.track-selection-ui .delete-button:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .delete-button > img {\n\tmargin: 0;\n\tpadding: 0;\n\theight: 20px;\n\tvertical-align: top;\n\tpointer-events: none;\n}\n\n.cfm-more-btn {\n\tposition: absolute;\n\ttop: 34px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.cfm-more-btn:hover { background-color: var(--button-hover-color); }\n.cfm-more-btn:active { background-color: var(--button-active-color); }\n\n.cfm-context-menu {\n\tz-index: 9999;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 6px;\n\tpadding: 4px 0;\n\tmin-width: 220px;\n\tbox-shadow: 0 4px 16px rgba(0,0,0,0.5);\n}\n.cfm-menu-item {\n\tdisplay: block;\n\twidth: 100%;\n\tpadding: 10px 16px;\n\ttext-align: left;\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 24px;\n\tcursor: pointer;\n}\n.cfm-menu-item:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-menu-hint {\n\tpadding: 10px 16px;\n\tfont-size: 20px;\n\topacity: 0.6;\n\tcolor: var(--text-color, #fff);\n}\n\n.custom-folder-manager-panel {\n\tposition: absolute;\n\ttop: 20px;\n\tright: 20px;\n\tz-index: 100;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 8px;\n\tpadding: 16px;\n\tmin-width: 320px;\n\tbox-shadow: 0 4px 24px rgba(0,0,0,0.6);\n\tcolor: var(--text-color, #fff);\n\tpointer-events: auto;\n}\n.cfm-header {\n\tdisplay: flex;\n\talign-items: center;\n\tjustify-content: space-between;\n\tmargin-bottom: 12px;\n\tfont-size: 30px;\n\tfont-weight: bold;\n}\n.cfm-close {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 28px;\n\tcursor: pointer;\n\tpadding: 0 4px;\n\topacity: 0.7;\n}\n.cfm-close:hover { opacity: 1; }\n.cfm-list { margin-bottom: 12px; }\n.cfm-empty { font-size: 24px; opacity: 0.5; padding: 8px 0; }\n.cfm-row {\n\tdisplay: flex;\n\talign-items: center;\n\tgap: 8px;\n\tpadding: 6px 0;\n\tborder-bottom: 1px solid rgba(255,255,255,0.08);\n}\n.cfm-folder-name { flex: 1; font-size: 26px; }\n.cfm-btn {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 22px;\n\tcursor: pointer;\n\tpadding: 2px 6px;\n\tborder-radius: 4px;\n}\n.cfm-btn:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-footer {\n\tdisplay: flex;\n\tgap: 8px;\n\tmargin-top: 8px;\n}\n.cfm-input {\n\tflex: 1;\n\tpadding: 6px 10px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: 1px solid rgba(255,255,255,0.2);\n\tbackground-color: rgba(255,255,255,0.05);\n\tcolor: var(--text-color, #fff);\n}\n.cfm-add-btn {\n\tpadding: 6px 14px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color, #fff);\n\tcursor: pointer;\n}\n.cfm-add-btn:hover { background-color: var(--button-hover-color); }\n.cfm-sort-select {\n\tmargin: 8px 0 8px 12px;\n\tpadding: 0 36px 0 24px;\n\theight: auto;\n\tmin-height: 52px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tfont-weight: bold;\n\tborder-radius: 0;\n\tborder: none;\n\t-webkit-appearance: none;\n\tappearance: none;\n\tbackground-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");\n\tbackground-repeat: no-repeat;\n\tbackground-position: calc(100% - 16px) center;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color);\n\tcursor: pointer;\n}\n.cfm-sort-select:hover { background-color: var(--button-hover-color); }\n\n.track-selection-ui .tracks-container.compact .track button {\n\tmargin: 4px;\n}\n.track-selection-ui .tracks-container.compact .track > .button > canvas,\n.track-selection-ui .tracks-container.compact .track > .button > img:not(.environment) {\n\tpadding: 8px 16px;\n\twidth: 64px;\n\theight: 64px;\n}\n.track-selection-ui .tracks-container.compact .track-title > p {\n\twidth: 96px;\n\tpadding: 0 8px;\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .track-title {\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .record {\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.compact .track .environment {\n\tbottom: 20px;\n\tright: 6px;\n\twidth: 16px;\n}\n.track-selection-ui .tracks-container.compact .delete-button {\n\ttop: 3px;\n\tright: 3px;\n}\n.track-selection-ui .tracks-container.compact .cfm-more-btn {\n\ttop: 18px;\n\tright: 3px;\n}\n.track-selection-ui .track .ts-compact-btn {\n\tposition: absolute;\n\tbottom: 10px;\n\tright: 10px;\n\tmargin: 0 !important;\n\tpadding: 0;\n\twidth: 44px;\n\theight: 44px;\n\tdisplay: flex !important;\n\talign-items: center;\n\tjustify-content: center;\n\tborder: none;\n\tborder-radius: 2px;\n\tbackground-color: var(--button-color);\n\topacity: 0.6;\n\tpointer-events: auto;\n\tcursor: pointer;\n\tz-index: 2;\n\ttransition: opacity 0.15s ease;\n\tline-height: 0;\n}\n.track-selection-ui .track .ts-compact-btn:hover {\n\topacity: 1;\n\tbackground-color: var(--button-hover-color);\n}\n.track-selection-ui .track .ts-compact-btn:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .track .ts-compact-btn svg {\n\tdisplay: block;\n\tmargin: auto;\n}\n`, ""]);
+            u.push([e.id, `.track-selection-ui {\n\tposition: absolute;\n\tbottom: 0;\n\tdisplay: flex;\n\tflex-direction: column;\n\twidth: 100%;\n\theight: 100%;\n\toverflow: hidden;\n\ttext-align: left;\n}\n.track-selection-ui.hidden {\n\tdisplay: none;\n}\n\n.track-selection-ui > .safe-area-left {\n\tposition: absolute;\n\tleft: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-left);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .safe-area-right {\n\tposition: absolute;\n\tright: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-right);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .bar {\n\tdisplay: flex;\n\tmargin: 0;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\twidth: 100%;\n\tbox-sizing: border-box;\n\tbackground-color: var(--surface-color);\n\ttext-align: left;\n\n\tpointer-events:auto;\n}\n.track-selection-ui > .bar > .button {\n\tmargin: 8px 12px;\n}\n\n.track-selection-ui > .bar > .search-bar-container {\n\tposition: relative;\n\tdisplay: flex;\n\tflex-grow: 1;\n}\n.track-selection-ui > .bar > .search-bar-container > input {\n\tmargin: 8px -10px;\n\tpadding: 0 20px;\n\tflex-grow: 1;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tcolor: var(--text-color);\n\ttext-indent: 2px; /* Without this the italic text will be cut off on the left side. */\n}\n.track-selection-ui > .bar > .search-bar-container > img {\n\tmargin: 8px -10px 8px 0;\n\tpadding: 0 16px;\n\twidth: 24px;\n\tbackground-color: var(--button-hover-color);\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n\n.track-selection-ui .category-container {\n\tdisplay: flex;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .category-container > button {\n\tposition: relative;\n\tmargin: 0 -3px;\n\tpadding: 0.6em 0;\n\tflex-grow: 1;\n\tbackground-color: transparent;\n\tfont-size: 2.8vw;\n\tfont-weight: bold;\n\ttext-shadow: 2px 2px 0 #112052, 0 0 10px #000, 0 0 10px #000;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:first-of-type {\n\tclip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:last-of-type {\n\tclip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);\n}\n.track-selection-ui .category-container > button::before {\n\tcontent: "";\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-position: center;\n\tbackground-size: cover;\n\tfilter: blur(2px);\n\ttransition: filter 0.2s ease-in-out,  0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button.official::before {\n\tbackground-image: url(${p});\n}\n.track-selection-ui .category-container > button.community::before {\n\tbackground-image: url(${f});\n}\n.track-selection-ui .category-container > button.custom::before {\n\tbackground-image: url(${g});\n}\n.track-selection-ui .category-container > button:hover::before {\n\tfilter: none;\n\ttransform: scale(1.1);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover::before {\n\t\tfilter: blur(2px);\n\t\ttransform: none;\n\t}\n\n\t.track-selection-ui .category-container > button:active::before {\n\t\tfilter: none;\n\t\ttransform: scale(1.1);\n\t}\n}\n.track-selection-ui .category-container > button.selected::before {\n\tfilter: none;\n}\n.track-selection-ui .category-container > button::after {\n\tbackground-color: transparent;\n}\n.track-selection-ui .category-container > button.selected::after {\n\twidth: 100%;\n}\n\n.track-selection-ui .category-container > button > .cover {\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-color: rgba(17, 32, 82, 0.75);\n\ttransition: background-color 0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button:hover > .cover {\n\tbackground-color: rgba(51, 75, 119, 0.5);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover > .cover {\n\t\tbackground-color: rgba(17, 32, 82, 0.75);\n\t}\n}\n.track-selection-ui .category-container > button:active > .cover {\n\tbackground-color: rgba(21, 31, 65, 0.5);\n}\n.track-selection-ui .category-container > button.selected > .cover {\n\tbackground-color: transparent;\n}\n\n@media (max-width: 1150px) {\n\t.track-selection-ui .category-container > button {\n\t\tfont-size: 32.2px;\n\t}\n}\n\n.track-selection-ui .tracks-container {\n\tmargin: 0;\n\tpadding: 20px calc(60px + var(--safe-area-right)) 20px calc(60px + var(--safe-area-left));\n\tbox-sizing: border-box;\n\twidth: 100%;\n\tflex-grow: 1;\n\toverflow-y: auto;\n\tpointer-events: auto;\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.open {\n\tdisplay: block;\n}\n.track-selection-ui.with-background .tracks-container {\n\tbackground-color: var(--surface-overlay-color);\n\t-webkit-backdrop-filter: blur(4px);\n\tbackdrop-filter: blur(4px);\n}\n\n.track-selection-ui .tracks-container.no-group-containers {\n\tpadding-top: 50px;\n}\n\n.track-selection-ui .group-title.custom-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.custom-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.custom-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .folder-tracks.collapsed {\n\tdisplay: none;\n}\n.track-selection-ui .group-title.community-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .group-title.community-group {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-group::after {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-left: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-group.collapsed::after {\n\ttransform: rotate(-90deg);\n}\n\n.track-selection-ui .tracks-container > .empty {\n\tmargin: 100px;\n\tcolor: var(--text-color);\n\ttext-align: center;\n}\n.track-selection-ui .tracks-container > .empty > .title {\n\tfont-size: 48px;\n}\n.track-selection-ui .tracks-container > .empty > .description {\n\tmargin: 20px 0 0 0;\n\tfont-size: 32px;\n\topacity: 0.75;\n}\n\n.track-selection-ui .group-title {\n\tmargin: 0.5em 0.4em;\n\tpadding: 0;\n\tfont-size: 50px;\n\tfont-weight: normal;\n\tborder-bottom-width: 4px;\n\tborder-bottom-style: solid;\n\tcolor: var(--text-color);\n\tborder-image: linear-gradient(to right, var(--text-color), transparent) 1;\n\t\n}\n.track-selection-ui .group-title.winter {\n\tcolor: #bed8f7;\n\tborder-image: linear-gradient(to right, #bed8f7, transparent) 1;\n}\n.track-selection-ui .group-title.desert {\n\tcolor: #ede2af;\n\tborder-image: linear-gradient(to right, #ede2af, transparent) 1;\n}\n\n.track-selection-ui .group-title > img {\n\tmargin: 6px 8px;\n\twidth: 36px;\n\theight: 36px;\n\tvertical-align: bottom;\n}\n\n.track-selection-ui .tracks-container .track {\n\tposition: relative;\n\tdisplay: inline-block;\n}\n\n.track-selection-ui .tracks-container .track button {\n\tmargin: 10px;\n\tpadding: 0;\n\tcolor: var(--text-color);\n\tfont-size: 32px;\n}\n.track-selection-ui .tracks-container .track button:after {\n\tborder-bottom: none;\n}\n.track-selection-ui .tracks-container .track button:focus-visible {\n\ttext-decoration: none;\n}\n\n.track-selection-ui .track-title {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 25px;\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .tracks-container .track button:focus-visible .track-title {\n\ttext-decoration: underline;\n}\n.track-selection-ui .track-title > p {\n\tmargin: 0;\n\tpadding: 0 22px;\n\twidth: 208px;\n\tbox-sizing: border-box;\n\twhite-space: nowrap;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n}\n\n.track-selection-ui .track > .button > canvas, .track-selection-ui .track > .button > img:not(.environment) {\n\tmargin: 0;\n\tpadding: 20px 40px;\n\twidth: 128px;\n\theight: 128px;\n\tobject-fit: contain;\n\t-webkit-filter: drop-shadow(0 0 3px #000);\n\tfilter: drop-shadow(0 0 3px #000);\n\timage-rendering: pixelated;\n\tpointer-events: none;\n}\n.track-selection-ui .track > .button > img:not(.environment) {\n\ttransition: opacity 0.25s ease-out;\n}\n.track-selection-ui .track > .button > img:not(.environment).loading {\n\topacity: 0;\n}\n\n.track-selection-ui .track .environment {\n\tposition: absolute;\n\tright: 14px;\n\tbottom: 40px;\n\twidth: 24px;\n\topacity: 0.2;\n\tpointer-events: none;\n}\n\n.track-selection-ui .record {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 24px;\n\tbackground-color: var(--surface-secondary-color);\n\tcolor: var(--text-color);\n}\n\n.track-selection-ui .delete-button {\n\tposition: absolute;\n\ttop: 7px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.track-selection-ui .delete-button:hover {\n\tbackground-color: var(--button-hover-color);\n}\n@media (hover: none) {\n\t.track-selection-ui .delete-button:hover {\n\t\tbackground-color: var(--button-color);\n\t}\n}\n.track-selection-ui .delete-button:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .delete-button > img {\n\tmargin: 0;\n\tpadding: 0;\n\theight: 20px;\n\tvertical-align: top;\n\tpointer-events: none;\n}\n\n.cfm-more-btn {\n\tposition: absolute;\n\ttop: 34px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.cfm-more-btn:hover { background-color: var(--button-hover-color); }\n.cfm-more-btn:active { background-color: var(--button-active-color); }\n\n.cfm-context-menu {\n\tz-index: 9999;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 6px;\n\tpadding: 4px 0;\n\tmin-width: 220px;\n\tbox-shadow: 0 4px 16px rgba(0,0,0,0.5);\n}\n.cfm-menu-item {\n\tdisplay: block;\n\twidth: 100%;\n\tpadding: 10px 16px;\n\ttext-align: left;\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 24px;\n\tcursor: pointer;\n}\n.cfm-menu-item:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-menu-hint {\n\tpadding: 10px 16px;\n\tfont-size: 20px;\n\topacity: 0.6;\n\tcolor: var(--text-color, #fff);\n}\n\n.custom-folder-manager-panel {\n\tposition: absolute;\n\ttop: 20px;\n\tright: 20px;\n\tz-index: 100;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 8px;\n\tpadding: 16px;\n\tmin-width: 320px;\n\tbox-shadow: 0 4px 24px rgba(0,0,0,0.6);\n\tcolor: var(--text-color, #fff);\n\tpointer-events: auto;\n}\n.cfm-header {\n\tdisplay: flex;\n\talign-items: center;\n\tjustify-content: space-between;\n\tmargin-bottom: 12px;\n\tfont-size: 30px;\n\tfont-weight: bold;\n}\n.cfm-close {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 28px;\n\tcursor: pointer;\n\tpadding: 0 4px;\n\topacity: 0.7;\n}\n.cfm-close:hover { opacity: 1; }\n.cfm-list { margin-bottom: 12px; }\n.cfm-empty { font-size: 24px; opacity: 0.5; padding: 8px 0; }\n.cfm-row {\n\tdisplay: flex;\n\talign-items: center;\n\tgap: 8px;\n\tpadding: 6px 0;\n\tborder-bottom: 1px solid rgba(255,255,255,0.08);\n}\n.cfm-folder-name { flex: 1; font-size: 26px; }\n.cfm-btn {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 22px;\n\tcursor: pointer;\n\tpadding: 2px 6px;\n\tborder-radius: 4px;\n}\n.cfm-btn:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-footer {\n\tdisplay: flex;\n\tgap: 8px;\n\tmargin-top: 8px;\n}\n.cfm-input {\n\tflex: 1;\n\tpadding: 6px 10px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: 1px solid rgba(255,255,255,0.2);\n\tbackground-color: rgba(255,255,255,0.05);\n\tcolor: var(--text-color, #fff);\n}\n.cfm-add-btn {\n\tpadding: 6px 14px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color, #fff);\n\tcursor: pointer;\n}\n.cfm-add-btn:hover { background-color: var(--button-hover-color); }\n.cfm-sort-select {\n\tmargin: 8px 0 8px 12px;\n\tpadding: 0 36px 0 24px;\n\theight: auto;\n\tmin-height: 52px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tfont-weight: bold;\n\tborder-radius: 0;\n\tborder: none;\n\t-webkit-appearance: none;\n\tappearance: none;\n\tbackground-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");\n\tbackground-repeat: no-repeat;\n\tbackground-position: calc(100% - 16px) center;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color);\n\tcursor: pointer;\n}\n.cfm-sort-select:hover { background-color: var(--button-hover-color); }\n\n.track-selection-ui .tracks-container.compact .track button {\n\tmargin: 4px;\n}\n.track-selection-ui .tracks-container.compact .track > .button > canvas,\n.track-selection-ui .tracks-container.compact .track > .button > img:not(.environment) {\n\tpadding: 8px 16px;\n\twidth: 64px;\n\theight: 64px;\n}\n.track-selection-ui .tracks-container.compact .track-title > p {\n\twidth: 96px;\n\tpadding: 0 8px;\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .track-title {\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .record {\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.compact .track .environment {\n\tbottom: 20px;\n\tright: 6px;\n\twidth: 16px;\n}\n.track-selection-ui .tracks-container.compact .delete-button {\n\ttop: 3px;\n\tright: 3px;\n}\n.track-selection-ui .tracks-container.compact .cfm-more-btn {\n\ttop: 18px;\n\tright: 3px;\n}\n.track-selection-ui .track .ts-compact-btn {\n\tposition: absolute;\n\tbottom: 10px;\n\tright: 10px;\n\tmargin: 0 !important;\n\tpadding: 0;\n\twidth: 44px;\n\theight: 44px;\n\tdisplay: flex !important;\n\talign-items: center;\n\tjustify-content: center;\n\tborder: none;\n\tborder-radius: 2px;\n\tbackground-color: var(--button-color);\n\topacity: 0.6;\n\tpointer-events: auto;\n\tcursor: pointer;\n\tz-index: 2;\n\ttransition: opacity 0.15s ease;\n\tline-height: 0;\n}\n.track-selection-ui .track .ts-compact-btn:hover {\n\topacity: 1;\n\tbackground-color: var(--button-hover-color);\n}\n.track-selection-ui .track .ts-compact-btn:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .track .ts-compact-btn svg {\n\tdisplay: block;\n\tmargin: auto;\n}\n`, ""]);
             const m = u
         }
         ,
@@ -38624,6 +38677,11 @@ function _applyItalicsSetting(enabled) {
                 ))
             }
             getBuffer(e) {
+                
+                
+                
+                
+                if (window.__misoCustomSounds && window.__misoCustomSounds[e]) return window.__misoCustomSounds[e];
                 return null == this.context ? null : C.get(this, y, "f").has(e) ? C.get(this, y, "f").get(e) ?? null : null
             }
             playUIClick() {
@@ -38665,6 +38723,29 @@ function _applyItalicsSetting(enabled) {
                 C.get(this, m, "m", E).call(this),
                 C.get(this, m, "m", T).call(this),
                 C.get(this, m, "m", M).call(this, e, t)
+            }
+            
+            restartMusicBuffer() {
+                var ctx = this.context;
+                if (!ctx || !this.destinationMaster) return;
+                var current = b.get(this);
+                if (current) {
+                    try { current.gain.gain.cancelScheduledValues(0); } catch(_e) {}
+                    try { current.source.stop(); } catch(_e) {}
+                    b.set(this, null);
+                }
+                w.set(this, 0);
+                var buf = this.getBuffer('music');
+                if (!buf) return;
+                var src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.loop = true;
+                var gain = ctx.createGain();
+                gain.gain.value = 0;
+                src.connect(gain);
+                gain.connect(this.destinationMaster);
+                src.start(0);
+                b.set(this, { source: src, gain: gain });
             }
         }
         ;
@@ -49316,7 +49397,96 @@ function _applyItalicsSetting(enabled) {
             (() => {
                 const _stored = C.get(this, bs, "f").getSetting(R.A.ItalicsEnabled);
                 _applyItalicsSetting(_stored !== "false");
-            })()
+            })();
+
+            
+            (() => {
+                const _container = C.get(this, ks, "f");
+                const _audioMgr  = window.__misoAudioManager;
+                const SOUND_NAMES = ['music','click','engine','suspension','tires','collision','skidding','editor_edit','checkpoint','record','position_tick'];
+
+                const _hdr = document.createElement("h2");
+                _hdr.textContent = "Custom Sounds";
+                _container.appendChild(_hdr);
+
+                const _sub = document.createElement("h3");
+                _sub.textContent = "Upload audio files (.ogg / .mp3 / .wav) to replace any game sound. Survives page refresh.";
+                _container.appendChild(_sub);
+
+                window.__misoWaitForSound = window.__misoWaitForSound || [];
+
+                SOUND_NAMES.forEach(function(name) {
+                    const hasCustom = window.__misoCustomSounds && !!window.__misoCustomSounds[name];
+
+                    
+                    const dot = document.createElement("span");
+                    dot.style.cssText = "width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0;background:" + (hasCustom ? '#4caf50' : '#666') + ";";
+                    dot.title = hasCustom ? 'Custom sound active' : 'Default sound';
+
+                    
+                    const resetBtn = document.createElement("button");
+                    resetBtn.className = "button";
+                    resetBtn.textContent = "Reset";
+                    resetBtn.style.display = hasCustom ? '' : 'none';
+                    resetBtn.addEventListener("click", function() {
+                        try { if (_audioMgr) _audioMgr.playUIClick(); } catch(e){}
+                        window.__misoRemoveCustomSound(name);
+                        dot.style.background = '#666';
+                        dot.title = 'Default sound';
+                        resetBtn.style.display = 'none';
+                    });
+
+                    
+                    const fileInput = document.createElement("input");
+                    fileInput.type = "file";
+                    fileInput.accept = "audio/*";
+                    fileInput.style.display = "none";
+                    fileInput.addEventListener("change", function() {
+                        if (!fileInput.files || !fileInput.files[0]) return;
+                        const fname = fileInput.files[0].name;
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            window.__misoLoadCustomSound(name, ev.target.result.slice(0));
+                            dot.style.background = '#4caf50';
+                            dot.title = 'Custom: ' + fname;
+                            resetBtn.style.display = '';
+                        };
+                        reader.readAsArrayBuffer(fileInput.files[0]);
+                    });
+
+                    
+                    const uploadBtn = document.createElement("button");
+                    uploadBtn.className = "button";
+                    uploadBtn.textContent = "Upload";
+                    uploadBtn.addEventListener("click", function() {
+                        try { if (_audioMgr) _audioMgr.playUIClick(); } catch(e){}
+                        fileInput.click();
+                    });
+
+                    
+                    window.__misoWaitForSound.push({ name: name, dot: dot, resetBtn: resetBtn });
+
+                    
+                    const wrap = document.createElement("div");
+                    wrap.className = "button-wrapper";
+                    wrap.style.cssText = "gap:8px;align-items:center;";
+                    wrap.appendChild(dot);
+                    wrap.appendChild(fileInput);
+                    wrap.appendChild(uploadBtn);
+                    wrap.appendChild(resetBtn);
+
+                    const lbl = document.createElement("p");
+                    lbl.textContent = name.replace(/_/g, ' ');
+                    lbl.style.textTransform = "capitalize";
+
+                    const row = document.createElement("div");
+                    row.className = "setting";
+                    row.appendChild(lbl);
+                    row.appendChild(wrap);
+                    _container.appendChild(row);
+                });
+            })();
+            
         }
         ,
         Ds = function(e) {
@@ -52149,7 +52319,7 @@ function _applyItalicsSetting(enabled) {
             const t = document.createElement("a");
             t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.4.0a",
+            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.0",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
@@ -52855,7 +53025,8 @@ function _applyItalicsSetting(enabled) {
                 $h.set(this, void 0),
                 ed.set(this, []),
                 C.set(this, $h, t, "f");
-                Promise.all(["summer1.track", "summer2.track", "summer3.track", "summer4.track", "summer5.track", "summer6.track", "summer7.track", "winter1.track", "winter2.track", "winter3.track", "winter4.track", "winter5.track", "desert1.track", "desert2.track", "desert3.track", "desert4.track", "desert5.track"].map((t => C.get(this, Qh, "m", td).call(this, t, e)))).then((e => {
+                
+                Promise.all(["summer1.track", "summer2.track", "summer3.track", "summer4.track", "summer5.track", "summer6.track", "summer7.track", "winter1.track", "winter2.track", "winter3.track", "winter4.track", "winter5.track", "desert1.track", "desert2.track", "desert3.track", "desert4.track", "desert5.track"].map((fileName => C.get(this, Qh, "m", nd).call(this, "tracks/official/" + fileName, { addResource: ()=>{}, loadedResource: ()=>{} })))).then((e => {
                     C.set(this, Jh, e, "f")
                 }
                 )).catch((e => {
@@ -57327,6 +57498,206 @@ function _applyItalicsSetting(enabled) {
             l.load("checkpoint", ["audio/checkpoint.ogg", "audio/checkpoint.mp3"]),
             l.load("record", ["audio/record.ogg", "audio/record.mp3"]),
             l.load("position_tick", ["audio/position_tick.ogg", "audio/position_tick.mp3"]),
+            
+            window.__misoAudioManager = l;
+            window.__misoCustomSounds = {};
+            
+            
+            
+            l.__misoRestartMusic = function() { l.restartMusicBuffer(); };
+            (function() {
+                const IDB_NAME    = 'MisoTweaks';
+                const IDB_VERSION = 1;
+                const IDB_STORE   = 'customSounds';
+
+                
+                
+                var _pendingRestore = {};
+                
+                
+                var _idbLoadComplete = false;
+
+                
+                
+                
+                
+                
+                
+                const _origGetBuffer = l.getBuffer.bind(l);
+                l.getBuffer = function(name) {
+                    if (window.__misoCustomSounds[name]) return window.__misoCustomSounds[name];
+                    if (_pendingRestore[name]) return null;
+                    return _origGetBuffer(name);
+                };
+
+                
+                function _openDb() {
+                    return new Promise(function(resolve, reject) {
+                        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+                        req.onupgradeneeded = function(e) { e.target.result.createObjectStore(IDB_STORE); };
+                        req.onsuccess = function(e) { resolve(e.target.result); };
+                        req.onerror   = function(e) { reject(e.target.error); };
+                    });
+                }
+
+                function _idbSave(name, arrayBuffer) {
+                    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                        console.error('[MisoTweaks] Skipping IDB save for "' + name + '" — buffer empty/detached');
+                        return;
+                    }
+                    _openDb().then(function(db) {
+                        const tx = db.transaction(IDB_STORE, 'readwrite');
+                        tx.objectStore(IDB_STORE).put(arrayBuffer, name);
+                    }).catch(function(err) {
+                        console.error('[MisoTweaks] IDB save failed for "' + name + '":', err);
+                    });
+                }
+
+                function _idbDelete(name) {
+                    _openDb().then(function(db) {
+                        db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).delete(name);
+                    }).catch(function(err) {
+                        console.error('[MisoTweaks] IDB delete failed for "' + name + '":', err);
+                    });
+                }
+
+                
+                window.__misoDebugIDB = function() {
+                    _openDb().then(function(db) {
+                        const store = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE);
+                        store.getAllKeys().onsuccess = function(e) {
+                            e.target.result.forEach(function(k) {
+                                store.get(k).onsuccess = function(e2) {
+                                    const v = e2.target.result;
+                                    console.log('[MisoTweaks:IDB] "' + k + '" → ' + (v ? v.byteLength + ' bytes' : 'missing'));
+                                };
+                            });
+                        };
+                    });
+                };
+
+                
+                function _decodeAndStore(name, arrayBuffer) {
+                    const ctx = l.context;
+                    if (!ctx) return Promise.reject('no audio context');
+                    return ctx.decodeAudioData(arrayBuffer).then(function(buf) {
+                        window.__misoCustomSounds[name] = buf;
+                        console.log('[MisoTweaks] Loaded custom sound: ' + name);
+                    });
+                }
+
+                
+                
+                
+                function _restartMusic() {
+                    var mgr = window.__misoAudioManager;
+                    if (!mgr || !mgr.__misoRestartMusic) return;
+                    try {
+                        mgr.__misoRestartMusic();
+                    } catch(e) {
+                        console.warn('[MisoTweaks] _restartMusic failed:', e);
+                    }
+                }
+
+                
+                function _updateDotUI(name, active, label) {
+                    (window.__misoWaitForSound || []).forEach(function(entry) {
+                        if (entry.name !== name) return;
+                        entry.dot.style.background = active ? '#4caf50' : '#666';
+                        entry.dot.title = label || (active ? 'Custom sound active' : 'Default sound');
+                        if (entry.resetBtn) entry.resetBtn.style.display = active ? '' : 'none';
+                    });
+                }
+
+                
+                
+                
+                function _flushPending() {
+                    var names = Object.keys(_pendingRestore);
+                    if (!names.length) return;
+                    names.forEach(function(name) {
+                        var buf = _pendingRestore[name];
+                        
+                        
+                        
+                        _decodeAndStore(name, buf).then(function() {
+                            delete _pendingRestore[name];
+                            _updateDotUI(name, true, 'Custom sound active (saved)');
+                            if (name === 'music') _restartMusic();
+                        }).catch(function(err) {
+                            delete _pendingRestore[name];
+                            console.warn('[MisoTweaks] Failed to restore "' + name + '":', err);
+                        });
+                    });
+                }
+
+                
+                
+                
+                function _waitForContextThenFlush() {
+                    var ctx = l.context;
+                    if (ctx && ctx.state === 'running' && _idbLoadComplete) {
+                        _flushPending();
+                    } else {
+                        setTimeout(_waitForContextThenFlush, 200);
+                    }
+                }
+                _waitForContextThenFlush();
+
+                
+                _openDb().then(function(db) {
+                    var tx    = db.transaction(IDB_STORE, 'readonly');
+                    var store = tx.objectStore(IDB_STORE);
+                    var req   = store.getAllKeys();
+                    req.onsuccess = function() {
+                        var keys = req.result;
+                        var remaining = keys.length;
+                        if (remaining === 0) { _idbLoadComplete = true; return; }
+                        keys.forEach(function(name) {
+                            store.get(name).onsuccess = function(e) {
+                                var buf = e.target.result;
+                                if (buf) {
+                                    _pendingRestore[name] = buf;
+                                    
+                                    
+                                    _updateDotUI(name, true, 'Custom sound active (saved)');
+                                }
+                                if (--remaining === 0) _idbLoadComplete = true;
+                            };
+                        });
+                    };
+                    req.onerror = function() { _idbLoadComplete = true; };
+                }).catch(function(err) {
+                    console.warn('[MisoTweaks] Could not open IDB on startup:', err);
+                    _idbLoadComplete = true;
+                });
+
+                
+                
+                
+                window.__misoLoadCustomSound = function(name, arrayBuffer) {
+                    var ctx = l.context;
+                    if (!ctx) { console.error('[MisoTweaks] No audio context'); return; }
+                    
+                    
+                    var bufferForIDB = arrayBuffer.slice(0);
+                    ctx.resume().then(function() {
+                        return _decodeAndStore(name, arrayBuffer);
+                    }).then(function() {
+                        _idbSave(name, bufferForIDB);
+                        if (name === 'music') _restartMusic();
+                    }).catch(function(err) {
+                        console.error('[MisoTweaks] Failed to decode "' + name + '":', err);
+                        alert('Failed to decode audio for "' + name + '": ' + err);
+                    });
+                };
+
+                window.__misoRemoveCustomSound = function(name) {
+                    delete window.__misoCustomSounds[name];
+                    _idbDelete(name);
+                };
+            })();
+            
             Kh.A.initResources(t);
             const c = document.getElementById("screen");
             if (!(c instanceof HTMLCanvasElement))
@@ -57794,25 +58165,26 @@ function _applyItalicsSetting(enabled) {
                             try {
                                 const carPos = typeof _ps.getPosition === "function" ? _ps.getPosition() : null;
                                 if (carPos) {
-                                    if (_cpTracerLine) {
-                                        h.scene.remove(_cpTracerLine);
-                                        _cpTracerLine.geometry.dispose();
-                                        _cpTracerLine.material.dispose();
-                                        _cpTracerLine = null;
-                                    }
                                     const _tracerDir = new THREE.Vector3().subVectors(_cpTracerTargetPos, carPos);
                                     const _tracerLen = _tracerDir.length();
                                     const _tracerDirN = _tracerDir.clone().normalize();
                                     const _tracerStart = carPos.clone().addScaledVector(_tracerDirN, 1.2);
                                     const _tracerAdjLen = Math.max(0, _tracerLen - 1.2);
                                     const _tracerMid = new THREE.Vector3().addVectors(_tracerStart, _cpTracerTargetPos).multiplyScalar(0.5);
-                                    const _tracerGeo = new THREE.BoxGeometry(0.15, 0.15, _tracerAdjLen);
-                                    const _tracerMat = new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.7, depthTest: false });
-                                    _cpTracerLine = new THREE.Mesh(_tracerGeo, _tracerMat);
+
+                                    
+                                    
+                                    
+                                    if (!_cpTracerLine) {
+                                        const _tracerGeo = new THREE.BoxGeometry(0.15, 0.15, 1); 
+                                        const _tracerMat = new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.7, depthTest: false });
+                                        _cpTracerLine = new THREE.Mesh(_tracerGeo, _tracerMat);
+                                        _cpTracerLine.renderOrder = 1001;
+                                        h.scene.add(_cpTracerLine);
+                                    }
+                                    _cpTracerLine.scale.set(1, 1, _tracerAdjLen);
                                     _cpTracerLine.position.copy(_tracerMid);
                                     _cpTracerLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _tracerDirN);
-                                    _cpTracerLine.renderOrder = 1001;
-                                    h.scene.add(_cpTracerLine);
                                 }
                             } catch(_e) {}
                         } else if (!_getCpTracerSetting() && _cpTracerLine) {
@@ -57877,19 +58249,29 @@ function _applyItalicsSetting(enabled) {
   var STORAGE_KEY = "polytrack_v5_prod_key_bindings";
   var DEFAULT_TOGGLE_KEY = "KeyI";
 
+  
+  
+  var _cachedToggleKeys = null;
+  window.addEventListener("storage", function(e) {
+    if (e.key === STORAGE_KEY) _cachedToggleKeys = null;
+  });
+
   function getToggleKeys() {
+    if (_cachedToggleKeys) return _cachedToggleKeys;
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         var bindings = JSON.parse(raw);
         for (var i = 0; i < bindings.length; i++) {
           if (bindings[i][0] === "ToggleInputOverlay") {
-            return bindings[i][1].filter(function(k) { return k != null; });
+            _cachedToggleKeys = bindings[i][1].filter(function(k) { return k != null; });
+            return _cachedToggleKeys;
           }
         }
       }
     } catch (e) {}
-    return [DEFAULT_TOGGLE_KEY];
+    _cachedToggleKeys = [DEFAULT_TOGGLE_KEY];
+    return _cachedToggleKeys;
   }
 
   window.addEventListener("keydown", function(e) {
@@ -57926,8 +58308,14 @@ function _applyItalicsSetting(enabled) {
   function update() {
     rafId = requestAnimationFrame(update);
     var inTest = !!document.querySelector(".game-ui");
-    ui.style.display = (inTest && !overlayHidden) ? "" : "none";
-    if (!inTest || overlayHidden) return;
+
+    
+    
+    if (!inTest || overlayHidden) {
+      ui.style.display = "none";
+      return;
+    }
+    ui.style.display = "";
     var c = typeof window.__getPlayerControls === "function" ? window.__getPlayerControls() : null;
     if (!c) return;
     arrows["arrow-up"].className    = "arrow-up"    + (c.up    ? " active" : "");
