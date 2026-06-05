@@ -43,7 +43,7 @@ function _mbGetCarVelocityScale() {
             _mbVelocityScale = 1.0;
         }
     } catch(e) { _mbVelocityScale = 1.0; }
-    _mbVelocitySmooth += (_mbVelocityScale - _mbVelocitySmooth) * 0.18;
+    _mbVelocitySmooth += (_mbVelocityScale - _mbVelocitySmooth) * 0.08;
     return _mbVelocitySmooth;
 }
 
@@ -79,13 +79,26 @@ function _applyMotionBlurSetting(enabled) {
         var w = srcCanvas.width, h = srcCanvas.height;
         if (_misoMBCanvas.width !== w || _misoMBCanvas.height !== h) {
             _misoMBCanvas.width = w; _misoMBCanvas.height = h;
+            _misoMBCtx.clearRect(0, 0, w, h);
         }
-        var eff = _misoMBStrength * _mbGetCarVelocityScale();
-        _misoMBCtx.globalCompositeOperation = 'destination-out';
-        _misoMBCtx.globalAlpha = 1.0 - eff * 0.995;
-        _misoMBCtx.fillRect(0, 0, w, h);
+        var vel = _mbGetCarVelocityScale();
+        if (vel < 0.08) {
+            _misoMBCtx.globalAlpha = 1.0;
+            _misoMBCtx.globalCompositeOperation = 'source-over';
+            _misoMBCtx.clearRect(0, 0, w, h);
+            _misoMBCtx.drawImage(srcCanvas, 0, 0, w, h);
+            return;
+        }
+        var eff = _misoMBStrength * vel;
+
+        var persistence = 0.3 + eff * 0.65; 
         _misoMBCtx.globalCompositeOperation = 'source-over';
-        _misoMBCtx.globalAlpha = 0.95 - eff * 0.80;
+        _misoMBCtx.globalAlpha = 1.0 - persistence;
+        _misoMBCtx.fillStyle = 'rgba(0,0,0,1)';
+        _misoMBCtx.fillRect(0, 0, w, h);
+        var newFrameAlpha = 1.0 - eff * 0.75;
+        _misoMBCtx.globalCompositeOperation = 'source-over';
+        _misoMBCtx.globalAlpha = Math.max(0.15, newFrameAlpha);
         _misoMBCtx.drawImage(srcCanvas, 0, 0, w, h);
         _misoMBCtx.globalAlpha = 1.0;
     }
@@ -49681,7 +49694,7 @@ function _applyBloomSetting(enabled) {
                 _applyBloomSetting(window.__misoBloomEnabled);
             })();
 
-            // FXAA post-process layer
+
             (() => {
                 var _fxaaStyleEl = null;
                 var _fxaaCanvasEl = null;
@@ -49689,7 +49702,6 @@ function _applyBloomSetting(enabled) {
                 var _fxaaActive = false;
 
                 function _applyFxaaSetting(mode) {
-                    // Remove any previous FXAA canvas
                     if (_fxaaCanvasEl) { _fxaaCanvasEl.style.display = 'none'; }
                     if (_fxaaRafId) { cancelAnimationFrame(_fxaaRafId); _fxaaRafId = null; }
                     _fxaaActive = false;
@@ -49724,7 +49736,6 @@ function _applyBloomSetting(enabled) {
                         if (_fxaaCanvasEl.width !== w || _fxaaCanvasEl.height !== h) {
                             _fxaaCanvasEl.width = w; _fxaaCanvasEl.height = h;
                         }
-                        // Draw with CSS filter-based FXAA approximation: slight blur + contrast boost
                         fxaaCtx.filter = 'blur(0.4px) contrast(1.04)';
                         fxaaCtx.globalAlpha = 1.0;
                         fxaaCtx.drawImage(srcCanvas, 0, 0, w, h);
