@@ -18,6 +18,200 @@ function _applyItalicsSetting(enabled) {
     try { if (localStorage.getItem('_italicsEnabled') === 'false') _applyItalicsSetting(false); } catch(e) {}
 })();
 
+var _misoMBCanvas = null;
+var _misoMBCtx = null;
+var _misoMBRafId = null;
+var _misoMBActive = false;
+var _misoMBStrength = 0.75;
+try { var _mbsStored = localStorage.getItem('_motionBlurStrength'); if (_mbsStored !== null) _misoMBStrength = parseFloat(_mbsStored); } catch(e) {}
+
+var _mbLastPos = null;
+var _mbVelocityScale = 0.0;
+var _mbVelocitySmooth = 0.0;
+
+function _mbGetCarVelocityScale() {
+    try {
+        var pos = (typeof window.__getPlayerPosition === 'function') ? window.__getPlayerPosition() : null;
+        if (!pos) pos = (window._ps && typeof window._ps.getPosition === 'function') ? window._ps.getPosition() : null;
+        if (pos) {
+            if (_mbLastPos) {
+                var dx = pos.x - _mbLastPos.x, dy = pos.y - _mbLastPos.y, dz = (pos.z || 0) - (_mbLastPos.z || 0);
+                _mbVelocityScale = Math.min(1.0, Math.sqrt(dx*dx + dy*dy + dz*dz) / 0.8);
+            }
+            _mbLastPos = { x: pos.x, y: pos.y, z: pos.z || 0 };
+        } else {
+            _mbVelocityScale = 1.0;
+        }
+    } catch(e) { _mbVelocityScale = 1.0; }
+    _mbVelocitySmooth += (_mbVelocityScale - _mbVelocitySmooth) * 0.18;
+    return _mbVelocitySmooth;
+}
+
+function _applyMotionBlurSetting(enabled) {
+    _misoMBActive = enabled;
+    try { localStorage.setItem('_motionBlurEnabled', enabled ? 'true' : 'false'); } catch(e) {}
+    if (!enabled) {
+        if (_misoMBCanvas) _misoMBCanvas.style.display = 'none';
+        if (_misoMBRafId) { cancelAnimationFrame(_misoMBRafId); _misoMBRafId = null; }
+        _mbLastPos = null; _mbVelocitySmooth = 0.0;
+        return;
+    }
+    var srcCanvas = document.getElementById('screen');
+    if (!srcCanvas) {
+        setTimeout(function() { if (_misoMBActive) _applyMotionBlurSetting(true); }, 300);
+        return;
+    }
+    if (!_misoMBCanvas) {
+        _misoMBCanvas = document.createElement('canvas');
+        _misoMBCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;image-rendering:crisp-edges;';
+        _misoMBCanvas.id = '_miso-mb-canvas';
+        var uiEl = document.getElementById('ui');
+        if (uiEl) uiEl.parentNode.insertBefore(_misoMBCanvas, uiEl);
+        else srcCanvas.parentNode.insertBefore(_misoMBCanvas, srcCanvas.nextSibling);
+        _misoMBCtx = _misoMBCanvas.getContext('2d');
+        _misoMBCtx.fillStyle = 'rgba(0,0,0,1)'; 
+    }
+    _misoMBCanvas.style.display = '';
+
+    function _mbLoop() {
+        if (!_misoMBActive) return;
+        _misoMBRafId = requestAnimationFrame(_mbLoop);
+        var w = srcCanvas.width, h = srcCanvas.height;
+        if (_misoMBCanvas.width !== w || _misoMBCanvas.height !== h) {
+            _misoMBCanvas.width = w; _misoMBCanvas.height = h;
+        }
+        var eff = _misoMBStrength * _mbGetCarVelocityScale();
+        _misoMBCtx.globalCompositeOperation = 'destination-out';
+        _misoMBCtx.globalAlpha = 1.0 - eff * 0.995;
+        _misoMBCtx.fillRect(0, 0, w, h);
+        _misoMBCtx.globalCompositeOperation = 'source-over';
+        _misoMBCtx.globalAlpha = 0.95 - eff * 0.80;
+        _misoMBCtx.drawImage(srcCanvas, 0, 0, w, h);
+        _misoMBCtx.globalAlpha = 1.0;
+    }
+
+    if (_misoMBRafId) cancelAnimationFrame(_misoMBRafId);
+    _mbLoop();
+}
+
+var _misoBloomActive = false;
+var _misoBloomStyleEl = null;
+var _misoBloomCanvas  = null;
+var _misoBloomCtx     = null;
+var _misoBloomRafId   = null;
+var _misoBloomStrength = 0.6;
+try { var _bsStored = localStorage.getItem('_bloomStrength'); if (_bsStored !== null) _misoBloomStrength = parseFloat(_bsStored); } catch(e) {}
+
+
+var _bloomWideA = null, _bloomWideB = null; 
+var _bloomCoreA = null, _bloomCoreB = null; 
+var _bloomWideACtx = null, _bloomWideBCtx = null;
+var _bloomCoreACtx = null, _bloomCoreBCtx = null;
+
+var _bloomLastStrength = -1, _bloomLastW = 0, _bloomLastH = 0;
+var _bloomWideR = 0, _bloomCoreR = 0;
+var _bloomWideW = 0, _bloomWideH = 0, _bloomCoreW = 0, _bloomCoreH = 0;
+
+function _bloomSyncScratch(w, h, s) {
+    if (w !== _bloomLastW || h !== _bloomLastH) {
+        var ww = Math.max(1, w >> 2), wh = Math.max(1, h >> 2);
+        var cw = Math.max(1, w >> 1), ch = Math.max(1, h >> 1);
+        if (!_bloomWideA) {
+            _bloomWideA = document.createElement('canvas'); _bloomWideACtx = _bloomWideA.getContext('2d');
+            _bloomWideB = document.createElement('canvas'); _bloomWideBCtx = _bloomWideB.getContext('2d');
+            _bloomCoreA = document.createElement('canvas'); _bloomCoreACtx = _bloomCoreA.getContext('2d');
+            _bloomCoreB = document.createElement('canvas'); _bloomCoreBCtx = _bloomCoreB.getContext('2d');
+        }
+        _bloomWideA.width = ww; _bloomWideA.height = wh; _bloomWideB.width = ww; _bloomWideB.height = wh;
+        _bloomCoreA.width = cw; _bloomCoreA.height = ch; _bloomCoreB.width = cw; _bloomCoreB.height = ch;
+        _bloomWideW = ww; _bloomWideH = wh; _bloomCoreW = cw; _bloomCoreH = ch;
+        _bloomLastW = w; _bloomLastH = h;
+    }
+    if (s !== _bloomLastStrength) {
+        _bloomWideR = Math.round(2 + s * 4); 
+        _bloomCoreR = Math.round(1 + s * 2); 
+        _bloomLastStrength = s;
+    }
+}
+
+
+function _bloomBlur(src, aCtx, bCtx, bw, bh, radius) {
+    var weight = 1 / (2 * radius + 1);
+    aCtx.globalAlpha = 1; aCtx.clearRect(0, 0, bw, bh); aCtx.drawImage(src, 0, 0, bw, bh);
+    bCtx.globalAlpha = weight; bCtx.clearRect(0, 0, bw, bh);
+    for (var dx = -radius; dx <= radius; dx++) bCtx.drawImage(aCtx.canvas, dx, 0);
+    aCtx.globalAlpha = weight; aCtx.clearRect(0, 0, bw, bh);
+    for (var dy = -radius; dy <= radius; dy++) aCtx.drawImage(bCtx.canvas, 0, dy);
+    aCtx.globalAlpha = 1;
+}
+
+function _applyBloomSetting(enabled) {
+    _misoBloomActive = enabled;
+    try { localStorage.setItem('_bloomEnabled', enabled ? 'true' : 'false'); } catch(e) {}
+    if (!_misoBloomStyleEl) {
+        _misoBloomStyleEl = document.createElement('style');
+        _misoBloomStyleEl.id = '_miso-bloom-style';
+        document.head.appendChild(_misoBloomStyleEl);
+    }
+    if (!enabled) {
+        _misoBloomStyleEl.textContent = '';
+        if (_misoBloomRafId) { cancelAnimationFrame(_misoBloomRafId); _misoBloomRafId = null; }
+        if (_misoBloomCanvas) _misoBloomCanvas.style.display = 'none';
+        var _srcRestore = document.getElementById('screen');
+        if (_srcRestore) _srcRestore.style.visibility = '';
+        return;
+    }
+    _misoBloomStyleEl.textContent = '';
+    var srcCanvas = document.getElementById('screen');
+    if (!srcCanvas) {
+        setTimeout(function() { if (_misoBloomActive) _applyBloomSetting(true); }, 300);
+        return;
+    }
+    if (!_misoBloomCanvas) {
+        _misoBloomCanvas = document.createElement('canvas');
+        _misoBloomCanvas.id = '_miso-bloom-canvas';
+        _misoBloomCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+        var uiEl = document.getElementById('ui');
+        if (uiEl) uiEl.parentNode.insertBefore(_misoBloomCanvas, uiEl);
+        else srcCanvas.parentNode.insertBefore(_misoBloomCanvas, srcCanvas.nextSibling);
+        _misoBloomCtx = _misoBloomCanvas.getContext('2d');
+    }
+    _misoBloomCanvas.style.display = '';
+    srcCanvas.style.visibility = 'hidden';
+
+    function _bloomLoop() {
+        if (!_misoBloomActive) return;
+        _misoBloomRafId = requestAnimationFrame(_bloomLoop);
+        var w = srcCanvas.width, h = srcCanvas.height;
+        if (w === 0 || h === 0) return;
+        if (_misoBloomCanvas.width !== w || _misoBloomCanvas.height !== h) {
+            _misoBloomCanvas.width = w; _misoBloomCanvas.height = h;
+        }
+        var s = _misoBloomStrength;
+        _bloomSyncScratch(w, h, s);
+        _bloomBlur(srcCanvas, _bloomWideACtx, _bloomWideBCtx, _bloomWideW, _bloomWideH, _bloomWideR);
+        _bloomBlur(srcCanvas, _bloomCoreACtx, _bloomCoreBCtx, _bloomCoreW, _bloomCoreH, _bloomCoreR);
+        _misoBloomCtx.globalCompositeOperation = 'source-over';
+        _misoBloomCtx.globalAlpha = 1.0;
+        _misoBloomCtx.drawImage(srcCanvas, 0, 0, w, h);
+        _misoBloomCtx.globalCompositeOperation = 'screen';
+        _misoBloomCtx.globalAlpha = 0.18 + s * 0.22;
+        _misoBloomCtx.drawImage(_bloomWideA, 0, 0, w, h);
+        _misoBloomCtx.globalAlpha = 0.28 + s * 0.22;
+        _misoBloomCtx.drawImage(_bloomCoreA, 0, 0, w, h);
+        _misoBloomCtx.globalAlpha = 1.0;
+        _misoBloomCtx.globalCompositeOperation = 'source-over';
+    }
+
+    if (_misoBloomRafId) cancelAnimationFrame(_misoBloomRafId);
+    _bloomLoop();
+}
+
+(function() {
+    try { if (localStorage.getItem('_motionBlurEnabled') === 'true') _applyMotionBlurSetting(true); } catch(e) {}
+    try { if (localStorage.getItem('_bloomEnabled') === 'true') _applyBloomSetting(true); } catch(e) {}
+})();
+
     var e, t = {
         77: (module, exports, __webpack_require__) => {
             "use strict";
@@ -3708,10 +3902,11 @@ function _applyItalicsSetting(enabled) {
                     i.set(this, x, settings, "f"),
                     i.set(this, S, fogOverride, "f");
                     const s = {
-                        antialias: settings?.getSettingBoolean(W.A.Antialiasing) ?? !0,
+                        antialias: (function() { var _aaVal = settings?.getSetting ? settings.getSetting(W.A.Antialiasing) : null; return _aaVal === "msaa2" || _aaVal === "msaa4" || _aaVal === "true" || _aaVal === true; })(),
                         powerPreference: "high-performance",
                         canvas: canvas,
-                        alpha: !0
+                        alpha: !0,
+                        preserveDrawingBuffer: true
                     };
                     try {
                         s.failIfMajorPerformanceCaveat = !0,
@@ -7278,7 +7473,9 @@ function _applyItalicsSetting(enabled) {
                 e[e.DecimalSpeedometer = 27] = "DecimalSpeedometer",
                 e[e.GhostOpacity = 28] = "GhostOpacity",
                 e[e.CpOnlyNext = 29] = "CpOnlyNext",
-                e[e.CpTracer = 30] = "CpTracer"
+                e[e.CpTracer = 30] = "CpTracer",
+                e[e.MotionBlur = 31] = "MotionBlur",
+                e[e.Bloom = 32] = "Bloom"
             }(i || (i = {}));
             const r = i
         }
@@ -7828,6 +8025,9 @@ function _applyItalicsSetting(enabled) {
                         left: !1,
                         reset: !1
                     } : null != l.get(this, re, "f") ? l.get(this, re, "f").getControls() : l.get(this, ie, "f").controls
+                }
+                getRawControls() {
+                    return null != l.get(this, re, "f") ? l.get(this, re, "f").getControls() : l.get(this, ie, "f").controls
                 }
                 setNameTag(e, t) {
                     null != l.get(this, ye, "f") && l.get(this, ye, "f").countryCode == e && l.get(this, ye, "f").name == t || (l.set(this, ye, {
@@ -36224,7 +36424,7 @@ function _applyItalicsSetting(enabled) {
                                     depthTexture: new THREE.DepthTexture(p.textureWidth,p.textureHeight,r,void 0,void 0,void 0,void 0,void 0,void 0,n),
                                     stencilBuffer: y.stencil,
                                     colorSpace: e.outputColorSpace,
-                                    samples: y.antialias ? 4 : 0,
+                                    samples: y.antialias ? ((y._aaMode === "msaa2") ? 2 : 4) : 0,
                                     resolveDepthBuffer: !1 === p.ignoreDepthValues,
                                     resolveStencilBuffer: !1 === p.ignoreDepthValues
                                 })
@@ -49258,8 +49458,14 @@ function _applyItalicsSetting(enabled) {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Off"),
                 value: "false"
             }, {
-                title: gs.getFromLanguage(C.get(this, Cs, "f"), "On"),
-                value: "true"
+                title: "FXAA",
+                value: "fxaa"
+            }, {
+                title: "2× MSAA",
+                value: "msaa2"
+            }, {
+                title: "4× MSAA",
+                value: "msaa4"
             }], R.A.Antialiasing),
             C.get(this, ms, "m", Gs).call(this, "Italics", [{
                 title: "Off",
@@ -49285,6 +49491,70 @@ function _applyItalicsSetting(enabled) {
                 title: "On",
                 value: "true"
             }], R.A.CpTracer),
+            C.get(this, ms, "m", Gs).call(this, "Motion blur", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.MotionBlur, () => {
+                const _enabled = (C.get(this, Ps, "f").get(R.A.MotionBlur) ?? "false") === "true";
+                window.__misoMotionBlurEnabled = _enabled;
+                _applyMotionBlurSetting(_enabled);
+            }),
+            (() => {
+                const _mbRow = document.createElement("div");
+                _mbRow.className = "setting";
+                const _mbLabel = document.createElement("p");
+                _mbLabel.textContent = "Motion blur amount";
+                _mbRow.appendChild(_mbLabel);
+                const _mbSlider = document.createElement("input");
+                _mbSlider.type = "range"; _mbSlider.min = 0; _mbSlider.max = 1; _mbSlider.step = 0.05;
+                _mbSlider.value = _misoMBStrength;
+                const _mbVal = document.createElement("p");
+                _mbVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
+                _mbVal.textContent = Math.round(_misoMBStrength * 100) + "%";
+                _mbSlider.addEventListener("input", () => {
+                    _misoMBStrength = parseFloat(_mbSlider.value);
+                    _mbVal.textContent = Math.round(_misoMBStrength * 100) + "%";
+                    try { localStorage.setItem("_motionBlurStrength", _misoMBStrength); } catch(e) {}
+                });
+                _mbRow.appendChild(_mbSlider);
+                _mbRow.appendChild(_mbVal);
+                C.get(this, ks, "f").appendChild(_mbRow);
+            })(),
+            C.get(this, ms, "m", Gs).call(this, "Bloom", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.Bloom, () => {
+                const _enabled = (C.get(this, Ps, "f").get(R.A.Bloom) ?? "false") === "true";
+                window.__misoBloomEnabled = _enabled;
+                _applyBloomSetting(_enabled);
+            }),
+            (() => {
+                const _bloomRow = document.createElement("div");
+                _bloomRow.className = "setting";
+                const _bloomLabel = document.createElement("p");
+                _bloomLabel.textContent = "Bloom amount";
+                _bloomRow.appendChild(_bloomLabel);
+                const _bloomSlider = document.createElement("input");
+                _bloomSlider.type = "range"; _bloomSlider.min = 0; _bloomSlider.max = 1; _bloomSlider.step = 0.05;
+                _bloomSlider.value = _misoBloomStrength;
+                const _bloomVal = document.createElement("p");
+                _bloomVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
+                _bloomVal.textContent = Math.round(_misoBloomStrength * 100) + "%";
+                _bloomSlider.addEventListener("input", () => {
+                    _misoBloomStrength = parseFloat(_bloomSlider.value);
+                    _bloomVal.textContent = Math.round(_misoBloomStrength * 100) + "%";
+                    try { localStorage.setItem("_bloomStrength", _misoBloomStrength); } catch(e) {}
+                });
+                _bloomRow.appendChild(_bloomSlider);
+                _bloomRow.appendChild(_bloomVal);
+                C.get(this, ks, "f").appendChild(_bloomRow);
+            })(),
             C.get(this, ms, "m", Ds).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Audio")),
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Master volume"), R.A.MasterVolume),
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Sound effect volume"), R.A.SoundEffectVolume),
@@ -49397,6 +49667,78 @@ function _applyItalicsSetting(enabled) {
             (() => {
                 const _stored = C.get(this, bs, "f").getSetting(R.A.ItalicsEnabled);
                 _applyItalicsSetting(_stored !== "false");
+            })();
+
+            (() => {
+                const _storedMB = C.get(this, bs, "f").getSetting(R.A.MotionBlur);
+                window.__misoMotionBlurEnabled = _storedMB === "true";
+                _applyMotionBlurSetting(window.__misoMotionBlurEnabled);
+            })();
+
+            (() => {
+                const _storedBL = C.get(this, bs, "f").getSetting(R.A.Bloom);
+                window.__misoBloomEnabled = _storedBL === "true";
+                _applyBloomSetting(window.__misoBloomEnabled);
+            })();
+
+            // FXAA post-process layer
+            (() => {
+                var _fxaaStyleEl = null;
+                var _fxaaCanvasEl = null;
+                var _fxaaRafId = null;
+                var _fxaaActive = false;
+
+                function _applyFxaaSetting(mode) {
+                    // Remove any previous FXAA canvas
+                    if (_fxaaCanvasEl) { _fxaaCanvasEl.style.display = 'none'; }
+                    if (_fxaaRafId) { cancelAnimationFrame(_fxaaRafId); _fxaaRafId = null; }
+                    _fxaaActive = false;
+
+                    if (mode !== 'fxaa') return;
+                    _fxaaActive = true;
+
+                    var srcCanvas = document.getElementById('screen');
+                    if (!srcCanvas) {
+                        setTimeout(function() { if (_fxaaActive) _applyFxaaSetting('fxaa'); }, 300);
+                        return;
+                    }
+
+                    if (!_fxaaCanvasEl) {
+                        _fxaaCanvasEl = document.createElement('canvas');
+                        _fxaaCanvasEl.id = '_miso-fxaa-canvas';
+                        _fxaaCanvasEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+                        var uiEl = document.getElementById('ui');
+                        if (uiEl) uiEl.parentNode.insertBefore(_fxaaCanvasEl, uiEl);
+                        else srcCanvas.parentNode.insertBefore(_fxaaCanvasEl, srcCanvas.nextSibling);
+                    }
+                    _fxaaCanvasEl.style.display = '';
+                    srcCanvas.style.visibility = 'hidden';
+
+                    var fxaaCtx = _fxaaCanvasEl.getContext('2d');
+
+                    function _fxaaLoop() {
+                        if (!_fxaaActive) return;
+                        _fxaaRafId = requestAnimationFrame(_fxaaLoop);
+                        var w = srcCanvas.width, h = srcCanvas.height;
+                        if (w === 0 || h === 0) return;
+                        if (_fxaaCanvasEl.width !== w || _fxaaCanvasEl.height !== h) {
+                            _fxaaCanvasEl.width = w; _fxaaCanvasEl.height = h;
+                        }
+                        // Draw with CSS filter-based FXAA approximation: slight blur + contrast boost
+                        fxaaCtx.filter = 'blur(0.4px) contrast(1.04)';
+                        fxaaCtx.globalAlpha = 1.0;
+                        fxaaCtx.drawImage(srcCanvas, 0, 0, w, h);
+                        fxaaCtx.filter = 'none';
+                    }
+
+                    if (_fxaaRafId) cancelAnimationFrame(_fxaaRafId);
+                    _fxaaLoop();
+                }
+
+                window.__misoApplyFxaa = _applyFxaaSetting;
+
+                const _storedAA = C.get(this, bs, "f").getSetting(R.A.Antialiasing);
+                _applyFxaaSetting(_storedAA);
             })();
 
             
@@ -52319,7 +52661,7 @@ function _applyItalicsSetting(enabled) {
             const t = document.createElement("a");
             t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.0",
+            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.1",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
@@ -56210,7 +56552,7 @@ function _applyItalicsSetting(enabled) {
                 null != n && C.get(this, Mu, "m", Pu).call(this, n)
             }
             defaultSettings() {
-                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "true"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"]])
+                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "msaa4"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"], [R.A.MotionBlur, "false"], [R.A.Bloom, "false"]])
             }
             defaultKeyBindings() {
                 return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]]])
@@ -56303,16 +56645,20 @@ function _applyItalicsSetting(enabled) {
                 C.set(this, Ou, document.createElement("div"), "f"),
                 C.get(this, Ou, "f").className = "arrow-left",
                 C.get(this, Ou, "f").innerHTML = '<img src="images/arrow_left.svg">',
-                C.get(this, Du, "f").appendChild(C.get(this, Ou, "f"))
+                C.get(this, Du, "f").appendChild(C.get(this, Ou, "f")),
+                window.__replayInputActive = true;
             }
             dispose() {
-                C.get(this, Nu, "f").removeChild(C.get(this, Du, "f"))
+                C.get(this, Nu, "f").removeChild(C.get(this, Du, "f")),
+                window.__replayInputActive = false,
+                window.__replayControls = null;
             }
             update(e) {
                 C.get(this, Bu, "f").className = e.up ? "active arrow-up" : "arrow-up",
                 C.get(this, Gu, "f").className = e.right ? "active arrow-right" : "arrow-right",
                 C.get(this, Fu, "f").className = e.down ? "active arrow-down" : "arrow-down",
-                C.get(this, Ou, "f").className = e.left ? "active arrow-left" : "arrow-left"
+                C.get(this, Ou, "f").className = e.left ? "active arrow-left" : "arrow-left",
+                window.__replayControls = e;
             }
         }
         ;
@@ -58362,4 +58708,181 @@ function _applyItalicsSetting(enabled) {
       try { applyFovFromArray(JSON.parse(value)); } catch (e) {}
     }
   };
+})();
+(function () {
+    var CPS_STORAGE_KEY = '_misoCpsEnabled';
+    var BINDINGS_KEY = 'polytrack_v5_prod_key_bindings';
+    var FRAMES_PER_SEC = 1000;
+    var DRIVE_ACTIONS = { VehicleAccelerate:1, VehicleBrake:1, VehicleTurnLeft:1, VehicleTurnRight:1 };
+
+    var cpsEnabled = true;
+    try {
+        var stored = localStorage.getItem(CPS_STORAGE_KEY);
+        if (stored !== null) cpsEnabled = stored === 'true';
+    } catch (e) {}
+
+    var inputTimes = [];
+    var totalInputs = 0;
+    var burstFlashTimeout = null;
+    var cpsEl = null;
+    var burstSpan = null;
+    var prevInGame = false;
+    var driveKeys = {};
+    var heldKeys = {};
+    var prevWasReplay = false;
+    var prevReplayControls = { up:false, down:false, left:false, right:false };
+
+    function loadBindings() {
+        driveKeys = {};
+        try {
+            var raw = localStorage.getItem(BINDINGS_KEY);
+            var bindings = raw ? JSON.parse(raw) : [];
+            for (var i = 0; i < bindings.length; i++) {
+                var action = bindings[i][0];
+                var keys = bindings[i][1];
+                if (!DRIVE_ACTIONS[action]) continue;
+                for (var j = 0; j < keys.length; j++) {
+                    if (keys[j] != null) driveKeys[keys[j]] = 1;
+                }
+            }
+        } catch (e) {}
+        if (Object.keys(driveKeys).length === 0) {
+            driveKeys = { ArrowUp:1, ArrowDown:1, ArrowLeft:1, ArrowRight:1, KeyW:1, KeyS:1, KeyA:1, KeyD:1 };
+        }
+    }
+    loadBindings();
+    window.addEventListener('storage', function (e) {
+        if (e.key === BINDINGS_KEY) loadBindings();
+    });
+
+    var css =
+        '#_miso-cps{' +
+            'position:absolute;' +
+            'top:12px;' +
+            'right:20px;' +
+            'z-index:10;' +
+            'pointer-events:none;' +
+            'font-family:ForcedSquare,Arial,sans-serif;' +
+            'font-style:italic;' +
+            'color:var(--text-color,#fff);' +
+            'font-size:24px;' +
+            'text-shadow:0 0 6px rgba(0,0,0,0.8),0 2px 4px rgba(0,0,0,0.6);' +
+            'background-color:var(--surface-color,rgba(17,32,82,0.55));' +
+            'padding:5px 14px;' +
+            'clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);' +
+        '}' +
+        '#_miso-cps.hidden{display:none;}' +
+        '#_miso-cps-burst{transition:color 0.05s;}' +
+        '#_miso-cps-burst.flash{color:#00ff88;}';
+
+    var styleEl = document.createElement('style');
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+
+    function clearAll() {
+        inputTimes = [];
+        totalInputs = 0;
+        heldKeys = {};
+        prevReplayControls = { up:false, down:false, left:false, right:false };
+        if (burstFlashTimeout) { clearTimeout(burstFlashTimeout); burstFlashTimeout = null; }
+        if (burstSpan) burstSpan.classList.remove('flash');
+    }
+
+    function recordInput(t) {
+        inputTimes.push(t);
+        totalInputs++;
+        if (burstSpan) {
+            burstSpan.classList.add('flash');
+            if (burstFlashTimeout) clearTimeout(burstFlashTimeout);
+            burstFlashTimeout = setTimeout(function () {
+                if (burstSpan) burstSpan.classList.remove('flash');
+            }, 100);
+        }
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.repeat) return;
+        if (window.__replayInputActive) return;
+        if (driveKeys[e.code] && !heldKeys[e.code]) {
+            heldKeys[e.code] = true;
+            recordInput(performance.now());
+        }
+    }, true);
+
+    document.addEventListener('keyup', function (e) {
+        if (driveKeys[e.code]) heldKeys[e.code] = false;
+    }, true);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.code !== 'KeyC') return;
+        var focused = document.activeElement;
+        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)) return;
+        cpsEnabled = !cpsEnabled;
+        try { localStorage.setItem(CPS_STORAGE_KEY, cpsEnabled ? 'true' : 'false'); } catch (ex) {}
+        if (cpsEl) {
+            if (cpsEnabled) { cpsEl.classList.remove('hidden'); } else { cpsEl.classList.add('hidden'); }
+        }
+    });
+
+    function update() {
+        requestAnimationFrame(update);
+        if (!cpsEl) return;
+
+        var inGame = !!document.querySelector('.game-ui');
+        var isReplay = !!window.__replayInputActive;
+        if (!prevInGame && inGame) clearAll();
+        if (prevInGame && inGame && prevWasReplay !== isReplay) clearAll();
+        prevInGame = inGame;
+        prevWasReplay = isReplay;
+
+        if (!cpsEnabled || !inGame) {
+            cpsEl.classList.add('hidden');
+            return;
+        }
+        cpsEl.classList.remove('hidden');
+
+        var replayControls = isReplay ? window.__replayControls : null;
+
+        if (isReplay) {
+            if (replayControls) {
+                var now = performance.now();
+                if (replayControls.up    && !prevReplayControls.up)    recordInput(now);
+                if (replayControls.down  && !prevReplayControls.down)  recordInput(now);
+                if (replayControls.left  && !prevReplayControls.left)  recordInput(now);
+                if (replayControls.right && !prevReplayControls.right) recordInput(now);
+                prevReplayControls.up    = !!replayControls.up;
+                prevReplayControls.down  = !!replayControls.down;
+                prevReplayControls.left  = !!replayControls.left;
+                prevReplayControls.right = !!replayControls.right;
+            }
+            var cutoffMs = performance.now() - 1000;
+            while (inputTimes.length && inputTimes[0] < cutoffMs) inputTimes.shift();
+        }
+        if (!isReplay) {
+            var liveControls = typeof window.__getPlayerControls === 'function' ? window.__getPlayerControls() : null;
+            if (liveControls && liveControls.reset) clearAll();
+            var cutoffMs = performance.now() - 1000;
+            while (inputTimes.length && inputTimes[0] < cutoffMs) inputTimes.shift();
+        }
+
+        cpsEl.childNodes[0].nodeValue = totalInputs + '/';
+        burstSpan.textContent = inputTimes.length;
+    }
+
+    function tryInit() {
+        var uiEl = document.getElementById('ui');
+        if (!uiEl) { setTimeout(tryInit, 100); return; }
+        cpsEl = document.createElement('div');
+        cpsEl.id = '_miso-cps';
+        if (!cpsEnabled) cpsEl.classList.add('hidden');
+        cpsEl.appendChild(document.createTextNode('0/'));
+        burstSpan = document.createElement('span');
+        burstSpan.id = '_miso-cps-burst';
+        burstSpan.textContent = '0';
+        cpsEl.appendChild(burstSpan);
+        cpsEl.appendChild(document.createTextNode(' CPS'));
+        uiEl.appendChild(cpsEl);
+        requestAnimationFrame(update);
+    }
+    tryInit();
 })();
