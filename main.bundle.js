@@ -17,95 +17,151 @@ function _applyItalicsSetting(enabled) {
 (function() {
     try { if (localStorage.getItem('_italicsEnabled') === 'false') _applyItalicsSetting(false); } catch(e) {}
 })();
-
-var _misoMBCanvas = null;
-var _misoMBCtx = null;
-var _misoMBRafId = null;
-var _misoMBActive = false;
-var _misoMBStrength = 0.75;
+var _misoMBStrength = 0.80;
 try { var _mbsStored = localStorage.getItem('_motionBlurStrength'); if (_mbsStored !== null) _misoMBStrength = parseFloat(_mbsStored); } catch(e) {}
 
-var _mbLastPos = null;
-var _mbVelocityScale = 0.0;
-var _mbVelocitySmooth = 0.0;
+var _motionBlur = (function() {
 
-function _mbGetCarVelocityScale() {
-    try {
-        var pos = (typeof window.__getPlayerPosition === 'function') ? window.__getPlayerPosition() : null;
-        if (!pos) pos = (window._ps && typeof window._ps.getPosition === 'function') ? window._ps.getPosition() : null;
-        if (pos) {
-            if (_mbLastPos) {
-                var dx = pos.x - _mbLastPos.x, dy = pos.y - _mbLastPos.y, dz = (pos.z || 0) - (_mbLastPos.z || 0);
-                _mbVelocityScale = Math.min(1.0, Math.sqrt(dx*dx + dy*dy + dz*dz) / 0.8);
+    var MAX_BUF    = 8;
+    var MIN_FRAMES = 3;
+
+    var frameBuf    = [];
+    var frameBufCtx = [];
+    var bufAlloced  = 0;
+    var bufHead     = 0;
+    var bufFilled   = 0;
+
+    var cachedWeights   = null;
+    var cachedNumFrames = 0;
+
+    var outCanvas = null, outCtx = null;
+    var rafId  = null;
+    var active = false;
+    var lastW  = 0, lastH = 0;
+    var _hasOffscreen = (function() {
+        try { return typeof OffscreenCanvas !== 'undefined' && !!new OffscreenCanvas(1, 1); }
+        catch(e) { return false; }
+    })();
+
+    function makeCanvas(w, h) {
+        if (_hasOffscreen) return new OffscreenCanvas(w, h);
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        return c;
+    }
+    function ensureBuffer(w, h, needed) {
+        var sizeChanged = (w !== lastW || h !== lastH);
+        if (sizeChanged) {
+            for (var i = 0; i < bufAlloced; i++) {
+                frameBuf[i].width    = w;
+                frameBuf[i].height   = h;
+                frameBufCtx[i].globalAlpha = 1.0;
+                frameBufCtx[i].globalCompositeOperation = 'source-over';
             }
-            _mbLastPos = { x: pos.x, y: pos.y, z: pos.z || 0 };
-        } else {
-            _mbVelocityScale = 1.0;
+            bufHead = 0; bufFilled = 0;
+            lastW = w; lastH = h;
         }
-    } catch(e) { _mbVelocityScale = 1.0; }
-    _mbVelocitySmooth += (_mbVelocityScale - _mbVelocitySmooth) * 0.08;
-    return _mbVelocitySmooth;
-}
+        for (var j = bufAlloced; j < needed; j++) {
+            frameBuf[j]    = makeCanvas(w, h);
+            frameBufCtx[j] = frameBuf[j].getContext('2d');
+        }
+        if (needed > bufAlloced) bufAlloced = needed;
+    }
+    function getWeights(n) {
+        if (n === cachedNumFrames && cachedWeights) return cachedWeights;
+        var w = new Array(n), sum = 0;
+        for (var i = 0; i < n; i++) {
+            var u = (n === 1) ? 0 : (i / (n - 1)) * 2.0 - 1.0;
+            w[i] = Math.exp(-u * u * 3.0);
+            sum += w[i];
+        }
+        for (var i = 0; i < n; i++) w[i] /= sum;
+        cachedWeights = w; cachedNumFrames = n;
+        return w;
+    }
+    function loop(srcCanvas) {
+        if (!active) return;
 
-function _applyMotionBlurSetting(enabled) {
-    _misoMBActive = enabled;
-    try { localStorage.setItem('_motionBlurEnabled', enabled ? 'true' : 'false'); } catch(e) {}
-    if (!enabled) {
-        if (_misoMBCanvas) _misoMBCanvas.style.display = 'none';
-        if (_misoMBRafId) { cancelAnimationFrame(_misoMBRafId); _misoMBRafId = null; }
-        _mbLastPos = null; _mbVelocitySmooth = 0.0;
-        return;
-    }
-    var srcCanvas = document.getElementById('screen');
-    if (!srcCanvas) {
-        setTimeout(function() { if (_misoMBActive) _applyMotionBlurSetting(true); }, 300);
-        return;
-    }
-    if (!_misoMBCanvas) {
-        _misoMBCanvas = document.createElement('canvas');
-        _misoMBCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;image-rendering:crisp-edges;';
-        _misoMBCanvas.id = '_miso-mb-canvas';
-        var uiEl = document.getElementById('ui');
-        if (uiEl) uiEl.parentNode.insertBefore(_misoMBCanvas, uiEl);
-        else srcCanvas.parentNode.insertBefore(_misoMBCanvas, srcCanvas.nextSibling);
-        _misoMBCtx = _misoMBCanvas.getContext('2d');
-        _misoMBCtx.fillStyle = 'rgba(0,0,0,1)'; 
-    }
-    _misoMBCanvas.style.display = '';
-
-    function _mbLoop() {
-        if (!_misoMBActive) return;
-        _misoMBRafId = requestAnimationFrame(_mbLoop);
         var w = srcCanvas.width, h = srcCanvas.height;
-        if (_misoMBCanvas.width !== w || _misoMBCanvas.height !== h) {
-            _misoMBCanvas.width = w; _misoMBCanvas.height = h;
-            _misoMBCtx.clearRect(0, 0, w, h);
-        }
-        var vel = _mbGetCarVelocityScale();
-        if (vel < 0.08) {
-            _misoMBCtx.globalAlpha = 1.0;
-            _misoMBCtx.globalCompositeOperation = 'source-over';
-            _misoMBCtx.clearRect(0, 0, w, h);
-            _misoMBCtx.drawImage(srcCanvas, 0, 0, w, h);
+        if (w === 0 || h === 0) {
+            rafId = requestAnimationFrame(function() { loop(srcCanvas); });
             return;
         }
-        var eff = _misoMBStrength * vel;
+        var numFrames = Math.round(MIN_FRAMES + _misoMBStrength * (MAX_BUF - MIN_FRAMES));
+        numFrames = Math.max(2, Math.min(numFrames, MAX_BUF));
+        ensureBuffer(w, h, numFrames);
+        numFrames = Math.min(numFrames, bufFilled + 1);
+        if (outCanvas.width !== w || outCanvas.height !== h) {
+            outCanvas.width  = w;
+            outCanvas.height = h;
+            outCtx.globalAlpha = 1.0;
+            outCtx.globalCompositeOperation = 'source-over';
+        }
+        var slotCtx = frameBufCtx[bufHead];
+        slotCtx.globalAlpha = 1.0;
+        slotCtx.globalCompositeOperation = 'copy';
+        slotCtx.drawImage(srcCanvas, 0, 0, w, h);
+        bufHead   = (bufHead + 1) % bufAlloced;
+        bufFilled = Math.min(bufFilled + 1, bufAlloced);
 
-        var persistence = 0.3 + eff * 0.65; 
-        _misoMBCtx.globalCompositeOperation = 'source-over';
-        _misoMBCtx.globalAlpha = 1.0 - persistence;
-        _misoMBCtx.fillStyle = 'rgba(0,0,0,1)';
-        _misoMBCtx.fillRect(0, 0, w, h);
-        var newFrameAlpha = 1.0 - eff * 0.75;
-        _misoMBCtx.globalCompositeOperation = 'source-over';
-        _misoMBCtx.globalAlpha = Math.max(0.15, newFrameAlpha);
-        _misoMBCtx.drawImage(srcCanvas, 0, 0, w, h);
-        _misoMBCtx.globalAlpha = 1.0;
+        if (numFrames < 2 || _misoMBStrength < 0.02) {
+            outCtx.clearRect(0, 0, w, h);
+            rafId = requestAnimationFrame(function() { loop(srcCanvas); });
+            return;
+        }
+        var ghostCount = numFrames - 1;
+        var weights = getWeights(ghostCount);
+
+        outCtx.clearRect(0, 0, w, h);
+        outCtx.globalCompositeOperation = 'lighter';
+
+        for (var bi = 0; bi < ghostCount; bi++) {
+            var bufIdx = ((bufHead - 1 - bi) % bufAlloced + bufAlloced) % bufAlloced;
+            outCtx.globalAlpha = weights[bi];
+            outCtx.drawImage(frameBuf[bufIdx], 0, 0, w, h);
+        }
+
+        outCtx.globalAlpha = 1.0;
+        outCtx.globalCompositeOperation = 'source-over';
+        rafId = requestAnimationFrame(function() { loop(srcCanvas); });
     }
+    return {
+        apply: function(enabled) {
+            active = enabled;
+            try { localStorage.setItem('_motionBlurEnabled', enabled ? 'true' : 'false'); } catch(e) {}
 
-    if (_misoMBRafId) cancelAnimationFrame(_misoMBRafId);
-    _mbLoop();
-}
+            if (!enabled) {
+                if (outCanvas) outCanvas.style.display = 'none';
+                if (rafId)     { cancelAnimationFrame(rafId); rafId = null; }
+                bufFilled = 0; bufHead = 0;
+                return;
+            }
+
+            var srcCanvas = document.getElementById('screen');
+            if (!srcCanvas) {
+                setTimeout(function() { if (active) _motionBlur.apply(true); }, 300);
+                return;
+            }
+
+            if (!outCanvas) {
+                outCanvas = document.createElement('canvas');
+                outCanvas.id = '_miso-mb-canvas';
+                outCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+                var uiEl = document.getElementById('ui');
+                if (uiEl) uiEl.parentNode.insertBefore(outCanvas, uiEl);
+                else srcCanvas.parentNode.insertBefore(outCanvas, srcCanvas.nextSibling);
+                outCtx = outCanvas.getContext('2d');
+            }
+            outCanvas.style.display = '';
+
+            if (rafId) cancelAnimationFrame(rafId);
+            bufFilled = 0; bufHead = 0;
+            loop(srcCanvas);
+        }
+    };
+})();
+
+function _applyMotionBlurSetting(enabled) { _motionBlur.apply(enabled); }
 
 var _misoBloomActive = false;
 var _misoBloomStyleEl = null;
@@ -114,48 +170,67 @@ var _misoBloomCtx     = null;
 var _misoBloomRafId   = null;
 var _misoBloomStrength = 0.6;
 try { var _bsStored = localStorage.getItem('_bloomStrength'); if (_bsStored !== null) _misoBloomStrength = parseFloat(_bsStored); } catch(e) {}
+var _misoVibrantStrength = 1.12;
+try { var _vsStored = localStorage.getItem('_vibrantStrength'); if (_vsStored !== null) _misoVibrantStrength = parseFloat(_vsStored); } catch(e) {}
 
+var _bloomLevels = [];
+var _bloomThresh = null, _bloomThreshCtx = null;
+var _bloomLastW = 0, _bloomLastH = 0;
+var _BLOOM_NUM_LEVELS = 5;
+var _BLOOM_THRESHOLD  = 0.55;
+var _BLOOM_KNEE       = 0.12;
 
-var _bloomWideA = null, _bloomWideB = null; 
-var _bloomCoreA = null, _bloomCoreB = null; 
-var _bloomWideACtx = null, _bloomWideBCtx = null;
-var _bloomCoreACtx = null, _bloomCoreBCtx = null;
-
-var _bloomLastStrength = -1, _bloomLastW = 0, _bloomLastH = 0;
-var _bloomWideR = 0, _bloomCoreR = 0;
-var _bloomWideW = 0, _bloomWideH = 0, _bloomCoreW = 0, _bloomCoreH = 0;
-
-function _bloomSyncScratch(w, h, s) {
-    if (w !== _bloomLastW || h !== _bloomLastH) {
-        var ww = Math.max(1, w >> 2), wh = Math.max(1, h >> 2);
-        var cw = Math.max(1, w >> 1), ch = Math.max(1, h >> 1);
-        if (!_bloomWideA) {
-            _bloomWideA = document.createElement('canvas'); _bloomWideACtx = _bloomWideA.getContext('2d');
-            _bloomWideB = document.createElement('canvas'); _bloomWideBCtx = _bloomWideB.getContext('2d');
-            _bloomCoreA = document.createElement('canvas'); _bloomCoreACtx = _bloomCoreA.getContext('2d');
-            _bloomCoreB = document.createElement('canvas'); _bloomCoreBCtx = _bloomCoreB.getContext('2d');
-        }
-        _bloomWideA.width = ww; _bloomWideA.height = wh; _bloomWideB.width = ww; _bloomWideB.height = wh;
-        _bloomCoreA.width = cw; _bloomCoreA.height = ch; _bloomCoreB.width = cw; _bloomCoreB.height = ch;
-        _bloomWideW = ww; _bloomWideH = wh; _bloomCoreW = cw; _bloomCoreH = ch;
-        _bloomLastW = w; _bloomLastH = h;
-    }
-    if (s !== _bloomLastStrength) {
-        _bloomWideR = Math.round(2 + s * 4); 
-        _bloomCoreR = Math.round(1 + s * 2); 
-        _bloomLastStrength = s;
-    }
+function _bloomMakeCanvas() {
+    var c = document.createElement('canvas');
+    return { c: c, x: c.getContext('2d') };
 }
 
-
-function _bloomBlur(src, aCtx, bCtx, bw, bh, radius) {
-    var weight = 1 / (2 * radius + 1);
-    aCtx.globalAlpha = 1; aCtx.clearRect(0, 0, bw, bh); aCtx.drawImage(src, 0, 0, bw, bh);
-    bCtx.globalAlpha = weight; bCtx.clearRect(0, 0, bw, bh);
-    for (var dx = -radius; dx <= radius; dx++) bCtx.drawImage(aCtx.canvas, dx, 0);
-    aCtx.globalAlpha = weight; aCtx.clearRect(0, 0, bw, bh);
-    for (var dy = -radius; dy <= radius; dy++) aCtx.drawImage(bCtx.canvas, 0, dy);
+function _bloomSyncScratch(w, h) {
+    if (w === _bloomLastW && h === _bloomLastH) return;
+    if (!_bloomThresh) { var t = _bloomMakeCanvas(); _bloomThresh = t.c; _bloomThreshCtx = t.x; }
+    _bloomThresh.width  = Math.max(1, w >> 1);
+    _bloomThresh.height = Math.max(1, h >> 1);
+    while (_bloomLevels.length < _BLOOM_NUM_LEVELS) {
+        var la = _bloomMakeCanvas(), lb = _bloomMakeCanvas();
+        _bloomLevels.push({ a: la.c, ac: la.x, b: lb.c, bc: lb.x, w: 1, h: 1 });
+    }
+    for (var i = 0; i < _BLOOM_NUM_LEVELS; i++) {
+        var lw = Math.max(1, w >> (i + 2)), lh = Math.max(1, h >> (i + 2));
+        _bloomLevels[i].a.width  = lw; _bloomLevels[i].a.height = lh;
+        _bloomLevels[i].b.width  = lw; _bloomLevels[i].b.height = lh;
+        _bloomLevels[i].w = lw; _bloomLevels[i].h = lh;
+    }
+    _bloomLastW = w; _bloomLastH = h;
+}
+function _bloomExtractThreshold(src, dstCtx, dw, dh, threshold, knee) {
+    dstCtx.clearRect(0, 0, dw, dh);
+    dstCtx.drawImage(src, 0, 0, dw, dh);
+    var id = dstCtx.getImageData(0, 0, dw, dh);
+    var d = id.data, len = d.length;
+    var tLow = threshold - knee, tHigh = threshold + knee;
+    for (var i = 0; i < len; i += 4) {
+        var lum = d[i] * 0.2126 + d[i+1] * 0.7152 + d[i+2] * 0.0722;
+        var lumN = lum / 255.0;
+        var ramp;
+        if      (lumN <= tLow)  { ramp = 0; }
+        else if (lumN >= tHigh) { ramp = 1; }
+        else    { var tt = (lumN - tLow) / (2.0 * knee); ramp = tt * tt * (3.0 - 2.0 * tt); }
+        d[i]   = (d[i]   * ramp + 0.5) | 0;
+        d[i+1] = (d[i+1] * ramp + 0.5) | 0;
+        d[i+2] = (d[i+2] * ramp + 0.5) | 0;
+    }
+    dstCtx.putImageData(id, 0, 0);
+}
+function _bloomKawasePass(src, aCtx, bCtx, bw, bh, iteration) {
+    var offset = iteration + 0.5;
+    bCtx.clearRect(0, 0, bw, bh);
+    bCtx.globalAlpha = 0.2;
+    for (var dx = -2; dx <= 2; dx++) { bCtx.drawImage(src, dx * offset, 0, bw, bh); }
+    aCtx.clearRect(0, 0, bw, bh);
+    aCtx.globalAlpha = 0.2;
+    for (var dy = -2; dy <= 2; dy++) { aCtx.drawImage(bCtx.canvas, 0, dy * offset, bw, bh); }
     aCtx.globalAlpha = 1;
+    bCtx.globalAlpha = 1;
 }
 
 function _applyBloomSetting(enabled) {
@@ -170,8 +245,6 @@ function _applyBloomSetting(enabled) {
         _misoBloomStyleEl.textContent = '';
         if (_misoBloomRafId) { cancelAnimationFrame(_misoBloomRafId); _misoBloomRafId = null; }
         if (_misoBloomCanvas) _misoBloomCanvas.style.display = 'none';
-        var _srcRestore = document.getElementById('screen');
-        if (_srcRestore) _srcRestore.style.visibility = '';
         return;
     }
     _misoBloomStyleEl.textContent = '';
@@ -183,14 +256,11 @@ function _applyBloomSetting(enabled) {
     if (!_misoBloomCanvas) {
         _misoBloomCanvas = document.createElement('canvas');
         _misoBloomCanvas.id = '_miso-bloom-canvas';
-        _misoBloomCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
-        var uiEl = document.getElementById('ui');
-        if (uiEl) uiEl.parentNode.insertBefore(_misoBloomCanvas, uiEl);
-        else srcCanvas.parentNode.insertBefore(_misoBloomCanvas, srcCanvas.nextSibling);
+        _misoBloomCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;';
+        srcCanvas.parentNode.insertBefore(_misoBloomCanvas, srcCanvas.nextSibling);
         _misoBloomCtx = _misoBloomCanvas.getContext('2d');
     }
     _misoBloomCanvas.style.display = '';
-    srcCanvas.style.visibility = 'hidden';
 
     function _bloomLoop() {
         if (!_misoBloomActive) return;
@@ -201,28 +271,57 @@ function _applyBloomSetting(enabled) {
             _misoBloomCanvas.width = w; _misoBloomCanvas.height = h;
         }
         var s = _misoBloomStrength;
-        _bloomSyncScratch(w, h, s);
-        _bloomBlur(srcCanvas, _bloomWideACtx, _bloomWideBCtx, _bloomWideW, _bloomWideH, _bloomWideR);
-        _bloomBlur(srcCanvas, _bloomCoreACtx, _bloomCoreBCtx, _bloomCoreW, _bloomCoreH, _bloomCoreR);
+        _bloomSyncScratch(w, h);
+        var tw = _bloomThresh.width, th2 = _bloomThresh.height;
+        _bloomExtractThreshold(srcCanvas, _bloomThreshCtx, tw, th2, _BLOOM_THRESHOLD, _BLOOM_KNEE);
+        var prevSrc = _bloomThresh;
+        for (var i = 0; i < _BLOOM_NUM_LEVELS; i++) {
+            var lv = _bloomLevels[i];
+            lv.ac.clearRect(0, 0, lv.w, lv.h);
+            lv.ac.globalAlpha = 1;
+            lv.ac.drawImage(prevSrc, 0, 0, lv.w, lv.h);
+            prevSrc = lv.a;
+        }
+        for (var j = 0; j < _BLOOM_NUM_LEVELS; j++) {
+            var lvj = _bloomLevels[j];
+            _bloomKawasePass(lvj.a, lvj.ac, lvj.bc, lvj.w, lvj.h, j + 1);
+        }
+        var baseAlpha = 0.12 + s * 0.18;
+        var levelAlphas = [0.55, 0.70, 0.82, 0.90, 1.00];
+        _misoBloomCtx.clearRect(0, 0, w, h);
         _misoBloomCtx.globalCompositeOperation = 'source-over';
+        for (var k = _BLOOM_NUM_LEVELS - 1; k >= 0; k--) {
+            var lvk = _bloomLevels[k];
+            _misoBloomCtx.globalAlpha = levelAlphas[k] * baseAlpha;
+            _misoBloomCtx.drawImage(lvk.a, 0, 0, w, h);
+        }
+
         _misoBloomCtx.globalAlpha = 1.0;
-        _misoBloomCtx.drawImage(srcCanvas, 0, 0, w, h);
-        _misoBloomCtx.globalCompositeOperation = 'screen';
-        _misoBloomCtx.globalAlpha = 0.18 + s * 0.22;
-        _misoBloomCtx.drawImage(_bloomWideA, 0, 0, w, h);
-        _misoBloomCtx.globalAlpha = 0.28 + s * 0.22;
-        _misoBloomCtx.drawImage(_bloomCoreA, 0, 0, w, h);
-        _misoBloomCtx.globalAlpha = 1.0;
-        _misoBloomCtx.globalCompositeOperation = 'source-over';
     }
 
     if (_misoBloomRafId) cancelAnimationFrame(_misoBloomRafId);
     _bloomLoop();
 }
 
+var _misoVibrantEnabled = false;
+try { _misoVibrantEnabled = localStorage.getItem('_vibrantColorsEnabled') === 'true'; } catch(e) {}
+function _applyVibrantStrength() {
+    var el = document.getElementById('_vibrant-colors-override');
+    if (!el) { el = document.createElement('style'); el.id = '_vibrant-colors-override'; document.head.appendChild(el); }
+    if (!_misoVibrantEnabled) { el.textContent = ''; return; }
+    var sat = _misoVibrantStrength;
+    var con = 1 + (_misoVibrantStrength - 1) * 0.3;
+    el.textContent = '#screen, #_miso-bloom-canvas { filter: saturate(' + sat.toFixed(3) + ') contrast(' + con.toFixed(3) + ') !important; }';
+}
+function _applyVibrantColorsSetting(enabled) {
+    _misoVibrantEnabled = enabled;
+    try { localStorage.setItem('_vibrantColorsEnabled', enabled ? 'true' : 'false'); } catch(e) {}
+    _applyVibrantStrength();
+}
 (function() {
     try { if (localStorage.getItem('_motionBlurEnabled') === 'true') _applyMotionBlurSetting(true); } catch(e) {}
     try { if (localStorage.getItem('_bloomEnabled') === 'true') _applyBloomSetting(true); } catch(e) {}
+    _applyVibrantStrength();
 })();
 
     var e, t = {
@@ -3931,6 +4030,7 @@ function _applyBloomSetting(enabled) {
                         i.set(this, E, !0, "f")
                     }
                     i.get(this, k, "f").outputColorSpace = THREE.LinearSRGBColorSpace,
+                    i.get(this, k, "f").shadowMap.type = THREE.PCFShadowMap,
                     i.get(this, k, "f").debug.checkShaderErrors = !1,
                     i.set(this, T, new THREE.Scene, "f"),
                     i.get(this, y, "m", G).call(this),
@@ -4123,8 +4223,6 @@ function _applyBloomSetting(enabled) {
                 }
                 switch (e) {
                 case 5:
-                    a = 5;
-                    break;
                 case 4:
                 case 3:
                     a = 4
@@ -4138,9 +4236,8 @@ function _applyBloomSetting(enabled) {
                     mode: "custom",
                     customSplitsCallback: (t, n, i, r) => {
                         5 == e ? (r.push((15 - n) / i),
-                        r.push((40 - n) / i),
-                        r.push((150 - n) / i),
-                        r.push((500 - n) / i),
+                        r.push((50 - n) / i),
+                        r.push((200 - n) / i),
                         r.push(1)) : 4 == e ? (r.push((15 - n) / i),
                         r.push((80 - n) / i),
                         r.push((300 - n) / i),
@@ -4158,10 +4255,9 @@ function _applyBloomSetting(enabled) {
                 });
                 s.fade = !0,
                 5 == e ? (s.lights[0].shadow.normalBias = .025,
-                s.lights[1].shadow.normalBias = .04,
-                s.lights[2].shadow.normalBias = .11,
-                s.lights[3].shadow.normalBias = .32,
-                s.lights[4].shadow.normalBias = 1.25) : 4 == e ? (s.lights[0].shadow.normalBias = .041,
+                s.lights[1].shadow.normalBias = .06,
+                s.lights[2].shadow.normalBias = .18,
+                s.lights[3].shadow.normalBias = .55) : 4 == e ? (s.lights[0].shadow.normalBias = .041,
                 s.lights[1].shadow.normalBias = .13,
                 s.lights[2].shadow.normalBias = .48,
                 s.lights[3].shadow.normalBias = 1.25) : (s.lights[0].shadow.normalBias = .08,
@@ -4213,14 +4309,14 @@ function _applyBloomSetting(enabled) {
             B = function(e) {
                 switch (e) {
                 case 5:
-                    return 8192;
-                case 4:
                     return 4096;
-                case 3:
+                case 4:
                     return 2048;
+                case 3:
+                    return 1024;
                 case 2:
                 case 1:
-                    return 1024;
+                    return 512;
                 default:
                     throw new Error("Unsupported shadow quality: " + e.toString())
                 }
@@ -7488,7 +7584,8 @@ function _applyBloomSetting(enabled) {
                 e[e.CpOnlyNext = 29] = "CpOnlyNext",
                 e[e.CpTracer = 30] = "CpTracer",
                 e[e.MotionBlur = 31] = "MotionBlur",
-                e[e.Bloom = 32] = "Bloom"
+                e[e.Bloom = 32] = "Bloom",
+                e[e.VibrantColors = 33] = "VibrantColors"
             }(i || (i = {}));
             const r = i
         }
@@ -39669,7 +39766,8 @@ function _applyBloomSetting(enabled) {
                 }
                   , r = 0
                   , a = 0;
-                renderer.canvas.addEventListener("mousedown", C.set(this, _onMouseDown, (e => {
+                window.addEventListener("mousedown", C.set(this, _onMouseDown, (e => {
+                    if (!C.get(this, _isEnabled, "f")) return;
                     n = !0;
                     const t = (new THREE.Euler).setFromQuaternion(C.get(this, _camera, "f").quaternion, "YXZ");
                     r = t.y,
@@ -39714,7 +39812,7 @@ function _applyBloomSetting(enabled) {
             dispose() {
                 window.removeEventListener("keydown", C.get(this, _onKeyDown, "f")),
                 window.removeEventListener("keyup", C.get(this, _onKeyUp, "f")),
-                C.get(this, _renderer, "f").canvas.removeEventListener("mousedown", C.get(this, _onMouseDown, "f")),
+                window.removeEventListener("mousedown", C.get(this, _onMouseDown, "f")),
                 window.removeEventListener("mouseup", C.get(this, _onMouseUp, "f")),
                 window.removeEventListener("mousemove", C.get(this, _onMouseMove, "f")),
                 window.removeEventListener("contextmenu", C.get(this, _onContextMenu, "f"))
@@ -43196,6 +43294,7 @@ function _applyBloomSetting(enabled) {
                     C.get(this, wa, "f").isControlsDisabled = C.get(this, Ba, "f").isEnabled || C.get(this, _r, "m", Ha).call(this),
                     window.__getPlayerControls = () => C.get(this, ya, "f")?.getControls?.() ?? null,
                     window.__getPlayerState = () => C.get(this, wa, "f") ?? null,
+                    window.__getPlayerPosition = () => C.get(this, wa, "f")?.getPosition?.() ?? null,
                     !C.get(this, Ba, "f").isEnabled && !C.get(this, _r, "m", Ha).call(this)) {
                         const e = C.get(this, ya, "f").getControls();
                         (e.up || e.down) && (C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").start()),
@@ -49554,7 +49653,7 @@ function _applyBloomSetting(enabled) {
                 _bloomLabel.textContent = "Bloom amount";
                 _bloomRow.appendChild(_bloomLabel);
                 const _bloomSlider = document.createElement("input");
-                _bloomSlider.type = "range"; _bloomSlider.min = 0; _bloomSlider.max = 1; _bloomSlider.step = 0.05;
+                _bloomSlider.type = "range"; _bloomSlider.min = 0; _bloomSlider.max = 2; _bloomSlider.step = 0.05;
                 _bloomSlider.value = _misoBloomStrength;
                 const _bloomVal = document.createElement("p");
                 _bloomVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
@@ -49567,6 +49666,38 @@ function _applyBloomSetting(enabled) {
                 _bloomRow.appendChild(_bloomSlider);
                 _bloomRow.appendChild(_bloomVal);
                 C.get(this, ks, "f").appendChild(_bloomRow);
+            })(),
+            C.get(this, ms, "m", Gs).call(this, "Vibrant colors", [{
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            }], R.A.VibrantColors, () => {
+                const _enabled = (C.get(this, Ps, "f").get(R.A.VibrantColors) ?? "false") === "true";
+                _applyVibrantColorsSetting(_enabled);
+            }),
+            (() => {
+                const _vibRow = document.createElement("div");
+                _vibRow.className = "setting";
+                const _vibLabel = document.createElement("p");
+                _vibLabel.textContent = "Vibrant amount";
+                _vibRow.appendChild(_vibLabel);
+                const _vibSlider = document.createElement("input");
+                _vibSlider.type = "range"; _vibSlider.min = 1; _vibSlider.max = 1.5; _vibSlider.step = 0.01;
+                _vibSlider.value = _misoVibrantStrength;
+                const _vibVal = document.createElement("p");
+                _vibVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
+                _vibVal.textContent = Math.round((_misoVibrantStrength - 1) * 100) + "%";
+                _vibSlider.addEventListener("input", () => {
+                    _misoVibrantStrength = parseFloat(_vibSlider.value);
+                    _vibVal.textContent = Math.round((_misoVibrantStrength - 1) * 100) + "%";
+                    try { localStorage.setItem("_vibrantStrength", _misoVibrantStrength); } catch(e) {}
+                    _applyVibrantStrength();
+                });
+                _vibRow.appendChild(_vibSlider);
+                _vibRow.appendChild(_vibVal);
+                C.get(this, ks, "f").appendChild(_vibRow);
             })(),
             C.get(this, ms, "m", Ds).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Audio")),
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Master volume"), R.A.MasterVolume),
@@ -56563,7 +56694,7 @@ function _applyBloomSetting(enabled) {
                 null != n && C.get(this, Mu, "m", Pu).call(this, n)
             }
             defaultSettings() {
-                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "msaa4"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"], [R.A.MotionBlur, "false"], [R.A.Bloom, "false"]])
+                return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "msaa4"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"], [R.A.MotionBlur, "false"], [R.A.Bloom, "false"], [R.A.VibrantColors, "false"]])
             }
             defaultKeyBindings() {
                 return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]]])
