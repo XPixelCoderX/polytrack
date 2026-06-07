@@ -50540,7 +50540,7 @@ _applyVibrantStrength();
                 C.get(this, eo, "f").playUIClick(),
                 C.get(this, wo, "f").some((e => e.recordingId == o)) ? (C.set(this, wo, C.get(this, wo, "f").filter((e => e.recordingId != o)), "f"),
                 c.classList.remove("selected"),
-                C.get(this, io, "f").call(this, C.get(this, wo, "f"))) : C.get(this, wo, "f").length < 10 && (C.set(this, wo, C.get(this, wo, "f").concat([{
+                C.get(this, io, "f").call(this, C.get(this, wo, "f"))) : (C.set(this, wo, C.get(this, wo, "f").concat([{
                     nickname: t,
                     recordingId: o,
                     isSelf: s
