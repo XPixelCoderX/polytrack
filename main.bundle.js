@@ -52888,7 +52888,7 @@ _applyVibrantStrength();
             const t = document.createElement("a");
             t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.1",
+            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.2",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
