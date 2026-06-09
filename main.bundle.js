@@ -24,7 +24,8 @@ try { if (localStorage.getItem('_italicsEnabled') === 'false') _applyItalicsSett
 var _misoMBStrength = 0.80;
 try { var _mbsStored = localStorage.getItem('_motionBlurStrength'); if (_mbsStored !== null) _misoMBStrength = parseFloat(_mbsStored); } catch(e) {}
 
-var _motionBlur = (function() {
+var _motionBlur = (function () {
+
     var MAX_BUF    = 8;
     var MIN_FRAMES = 3;
 
@@ -42,10 +43,25 @@ var _motionBlur = (function() {
     var active = false;
     var lastW  = 0, lastH = 0;
 
-    
-    var _hasOffscreen = (function() {
+    var _cachedTargetFrames = 0;
+    var _lastMBStrength     = -1;
+
+    function _getTargetFrames() {
+        if (_misoMBStrength !== _lastMBStrength) {
+            _lastMBStrength    = _misoMBStrength;
+            _cachedTargetFrames = Math.max(2,
+                Math.min(
+                    Math.round(MIN_FRAMES + _misoMBStrength * (MAX_BUF - MIN_FRAMES)),
+                    MAX_BUF
+                )
+            );
+        }
+        return _cachedTargetFrames;
+    }
+
+    var _hasOffscreen = (function () {
         try { return typeof OffscreenCanvas !== 'undefined' && !!new OffscreenCanvas(1, 1); }
-        catch(e) { return false; }
+        catch (e) { return false; }
     })();
 
     function makeCanvas(w, h) {
@@ -60,9 +76,6 @@ var _motionBlur = (function() {
             for (var i = 0; i < bufAlloced; i++) {
                 frameBuf[i].width  = w;
                 frameBuf[i].height = h;
-                
-                frameBufCtx[i].globalAlpha = 1.0;
-                frameBufCtx[i].globalCompositeOperation = 'source-over';
             }
             bufHead = 0; bufFilled = 0;
             lastW = w; lastH = h;
@@ -76,19 +89,22 @@ var _motionBlur = (function() {
 
     function getWeights(n) {
         if (n === cachedNumFrames && cachedWeights) return cachedWeights;
-        var w = new Array(n), sum = 0;
+        var w   = new Float32Array(n);
+        var sum = 0;
         for (var i = 0; i < n; i++) {
             var u = (n === 1) ? 0 : (i / (n - 1)) * 2.0 - 1.0;
-            w[i] = Math.exp(-u * u * 3.0);
-            sum += w[i];
+            w[i]  = Math.exp(-u * u * 3.0);
+            sum  += w[i];
         }
-        for (var i = 0; i < n; i++) w[i] /= sum;
-        cachedWeights = w; cachedNumFrames = n;
+        var invSum = 1.0 / sum;
+        for (var i = 0; i < n; i++) w[i] *= invSum;
+        cachedWeights   = w;
+        cachedNumFrames = n;
         return w;
     }
 
-    
     var _boundLoop;
+
     function loop(srcCanvas) {
         if (!active) return;
 
@@ -98,53 +114,62 @@ var _motionBlur = (function() {
             return;
         }
 
-        var numFrames = Math.round(MIN_FRAMES + _misoMBStrength * (MAX_BUF - MIN_FRAMES));
-        numFrames = Math.max(2, Math.min(numFrames, MAX_BUF));
+        if (_misoMBStrength < 0.02) {
+            if (outCanvas && (outCanvas.width !== w || outCanvas.height !== h)) {
+                outCanvas.width  = w;
+                outCanvas.height = h;
+            }
+            rafId = requestAnimationFrame(_boundLoop);
+            return;
+        }
+
+        var numFrames = _getTargetFrames();
         ensureBuffer(w, h, numFrames);
         numFrames = Math.min(numFrames, bufFilled + 1);
 
         if (outCanvas.width !== w || outCanvas.height !== h) {
             outCanvas.width  = w;
             outCanvas.height = h;
-            outCtx.globalAlpha = 1.0;
-            outCtx.globalCompositeOperation = 'source-over';
         }
 
-        
         var slotCtx = frameBufCtx[bufHead];
-        slotCtx.globalAlpha = 1.0;
+        slotCtx.globalAlpha              = 1.0;
         slotCtx.globalCompositeOperation = 'copy';
         slotCtx.drawImage(srcCanvas, 0, 0, w, h);
         bufHead   = (bufHead + 1) % bufAlloced;
         bufFilled = Math.min(bufFilled + 1, bufAlloced);
 
-        if (numFrames < 2 || _misoMBStrength < 0.02) {
+        var ghostCount = numFrames - 1;
+        if (ghostCount < 1) {
             outCtx.clearRect(0, 0, w, h);
             rafId = requestAnimationFrame(_boundLoop);
             return;
         }
 
-        var ghostCount = numFrames - 1;
         var weights = getWeights(ghostCount);
 
         outCtx.clearRect(0, 0, w, h);
         outCtx.globalCompositeOperation = 'lighter';
 
+        var slot = bufHead - 1;
+        if (slot < 0) slot += bufAlloced;
+
         for (var bi = 0; bi < ghostCount; bi++) {
-            var bufIdx = ((bufHead - 1 - bi) % bufAlloced + bufAlloced) % bufAlloced;
             outCtx.globalAlpha = weights[bi];
-            outCtx.drawImage(frameBuf[bufIdx], 0, 0, w, h);
+            outCtx.drawImage(frameBuf[slot], 0, 0, w, h);
+            if (--slot < 0) slot += bufAlloced;
         }
 
-        outCtx.globalAlpha = 1.0;
+        outCtx.globalAlpha              = 1.0;
         outCtx.globalCompositeOperation = 'source-over';
+
         rafId = requestAnimationFrame(_boundLoop);
     }
 
     return {
-        apply: function(enabled) {
+        apply: function (enabled) {
             active = enabled;
-            try { localStorage.setItem('_motionBlurEnabled', enabled ? 'true' : 'false'); } catch(e) {}
+            try { localStorage.setItem('_motionBlurEnabled', enabled ? 'true' : 'false'); } catch (e) {}
 
             if (!enabled) {
                 if (outCanvas) outCanvas.style.display = 'none';
@@ -155,14 +180,15 @@ var _motionBlur = (function() {
 
             var srcCanvas = document.getElementById('screen');
             if (!srcCanvas) {
-                setTimeout(function() { if (active) _motionBlur.apply(true); }, 300);
+                setTimeout(function () { if (active) _motionBlur.apply(true); }, 300);
                 return;
             }
 
             if (!outCanvas) {
-                outCanvas = document.createElement('canvas');
+                outCanvas    = document.createElement('canvas');
                 outCanvas.id = '_miso-mb-canvas';
-                outCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+                outCanvas.style.cssText =
+                    'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
                 var uiEl = document.getElementById('ui');
                 if (uiEl) uiEl.parentNode.insertBefore(outCanvas, uiEl);
                 else srcCanvas.parentNode.insertBefore(outCanvas, srcCanvas.nextSibling);
@@ -170,8 +196,7 @@ var _motionBlur = (function() {
             }
             outCanvas.style.display = '';
 
-            
-            _boundLoop = function() { loop(srcCanvas); };
+            _boundLoop = function () { loop(srcCanvas); };
 
             if (rafId) cancelAnimationFrame(rafId);
             bufFilled = 0; bufHead = 0;
@@ -179,7 +204,6 @@ var _motionBlur = (function() {
         }
     };
 })();
-
 function _applyMotionBlurSetting(enabled) { _motionBlur.apply(enabled); }
 
 
@@ -50540,7 +50564,7 @@ _applyVibrantStrength();
                 C.get(this, eo, "f").playUIClick(),
                 C.get(this, wo, "f").some((e => e.recordingId == o)) ? (C.set(this, wo, C.get(this, wo, "f").filter((e => e.recordingId != o)), "f"),
                 c.classList.remove("selected"),
-                C.get(this, io, "f").call(this, C.get(this, wo, "f"))) : C.get(this, wo, "f").length < 10 && (C.set(this, wo, C.get(this, wo, "f").concat([{
+                C.get(this, io, "f").call(this, C.get(this, wo, "f"))) : (C.set(this, wo, C.get(this, wo, "f").concat([{
                     nickname: t,
                     recordingId: o,
                     isSelf: s
@@ -52864,7 +52888,7 @@ _applyVibrantStrength();
             const t = document.createElement("a");
             t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.1",
+            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.2",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
             n.href = "https://deltarune.com/",
