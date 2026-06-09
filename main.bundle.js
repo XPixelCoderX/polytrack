@@ -50177,8 +50177,8 @@ _applyVibrantStrength();
             const rawStored = C.get(this, Ps, "f").get(t) ?? C.get(this, bs, "f").getSetting(t);
             let currentVal = parseFloat(rawStored);
             if (isNaN(currentVal)) currentVal = 1;
-            const commit = (val) => {
-                val = Math.max(0.1, Math.min(4, Math.round(val * 100) / 100));
+            const commit = (val, uncapped = false) => {
+                val = uncapped ? Math.max(0.1, Math.round(val * 100) / 100) : Math.max(0.1, Math.min(4, Math.round(val * 100) / 100));
                 currentVal = val;
                 numInput.value = Math.round(val * 100).toString();
                 for (const b of presetBtns) b.className = b.dataset.val === val.toString() ? "button selected" : "button";
@@ -50212,7 +50212,7 @@ _applyVibrantStrength();
             pct.style.cssText = "font-size:22px;color:inherit;";
             numInput.addEventListener("change", () => {
                 const v = parseFloat(numInput.value);
-                if (!isNaN(v) && v > 0) commit(v / 100);
+                if (!isNaN(v) && v > 0) commit(v / 100, true);
                 else numInput.value = Math.round(currentVal * 100).toString();
             });
             numInput.addEventListener("keydown", (ev) => ev.stopPropagation());
