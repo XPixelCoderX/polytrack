@@ -4356,7 +4356,7 @@ _applyVibrantStrength();
             ,
             N = function() {
                 let e, t = i.get(this, x, "f")?.getSettingFloat(W.A.RenderScale) ?? 1;
-                if (t = Number.isFinite(t) ? Math.min(Math.max(t, .1), 10) : 1,
+                if (t = Number.isFinite(t) ? Math.min(Math.max(t, .1), 4) : 1,
                 i.get(this, M, "f")instanceof THREE.PerspectiveCamera) {
                     const e = window.innerWidth / window.innerHeight
                       , t = new THREE.Vector2;
