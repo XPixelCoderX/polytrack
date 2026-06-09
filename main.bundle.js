@@ -49706,14 +49706,14 @@ _applyVibrantStrength();
                 _mbLabel.textContent = "Motion blur amount";
                 _mbRow.appendChild(_mbLabel);
                 const _mbSlider = document.createElement("input");
-                _mbSlider.type = "range"; _mbSlider.min = 0; _mbSlider.max = 1; _mbSlider.step = 0.05;
-                _mbSlider.value = _misoMBStrength;
+                _mbSlider.type = "range"; _mbSlider.min = 0; _mbSlider.max = 200; _mbSlider.step = 1;
+                _mbSlider.value = _misoMBStrength * 100;
                 const _mbVal = document.createElement("p");
                 _mbVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
-                _mbVal.textContent = Math.round(_misoMBStrength * 100) + "%";
+                _mbVal.textContent = _misoMBStrength.toFixed(2);
                 _mbSlider.addEventListener("input", () => {
-                    _misoMBStrength = parseFloat(_mbSlider.value);
-                    _mbVal.textContent = Math.round(_misoMBStrength * 100) + "%";
+                    _misoMBStrength = parseFloat(_mbSlider.value) / 100;
+                    _mbVal.textContent = _misoMBStrength.toFixed(2);
                     try { localStorage.setItem("_motionBlurStrength", _misoMBStrength); } catch(e) {}
                 });
                 _mbRow.appendChild(_mbSlider);
