@@ -43380,6 +43380,8 @@ _applyVibrantStrength();
                     window.__getPlayerControls = () => C.get(this, ya, "f")?.getControls?.() ?? null,
                     window.__getPlayerState = () => C.get(this, wa, "f") ?? null,
                     window.__getPlayerPosition = () => C.get(this, wa, "f")?.getPosition?.() ?? null,
+                    window.__getCurrentTrack = () => C.get(this, Yr, "f") ?? null,
+                    window.__getRaceCategory = () => C.get(this, Zr, "f") ?? null,
                     !C.get(this, Ba, "f").isEnabled && !C.get(this, _r, "m", Ha).call(this)) {
                         const e = C.get(this, ya, "f").getControls();
                         (e.up || e.down) && (C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").start()),
@@ -59072,6 +59074,438 @@ _applyVibrantStrength();
         cpsEl.appendChild(burstSpan);
         cpsEl.appendChild(document.createTextNode(' CPS'));
         uiEl.appendChild(cpsEl);
+        requestAnimationFrame(update);
+    }
+    tryInit();
+})();
+
+(function() {
+    var ENABLED_STORAGE_KEY = '_misoLiveLeaderboardEnabled';
+    var TOGGLE_KEY          = 'KeyL';
+    var CONTEXT_ROWS        = 3;
+    var TOP_ROWS            = 3;
+    var FETCH_TOP           = 10;
+    var FETCH_CONTEXT       = 20;
+    var REFRESH_DELAY_MS    = 3000;
+
+    var enabled = true;
+    try {
+        var _stored = localStorage.getItem(ENABLED_STORAGE_KEY);
+        if (_stored !== null) enabled = _stored === 'true';
+    } catch (e) {}
+
+    var style = document.createElement('style');
+    style.textContent =
+        '#_miso-lb-wrap{position:absolute;left:calc(var(--safe-area-horizontal,0px) + 8px);top:8px;' +
+        'width:210px;z-index:5;pointer-events:none;' +
+        'opacity:0.9;transition:opacity 0.2s ease-in-out 0.5s;}' +
+        '#_miso-lb-wrap.hidden{display:none;}' +
+        '#_miso-lb-wrap.faded{opacity:0;transition:opacity 0.2s ease-in-out;}' +
+        '#_miso-live-leaderboard{' +
+        'font-family:ForcedSquare,Arial,sans-serif;font-style:italic;' +
+        'text-shadow:0 0 6px rgba(0,0,0,0.8),0 2px 4px rgba(0,0,0,0.6);' +
+        'background-color:var(--surface-color,rgba(17,32,82,0.55));color:var(--text-color,#fff);' +
+        'padding:4px 0;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}' +
+        '#_miso-live-leaderboard>h3{margin:0;padding:3px 12px;font-size:13px;font-weight:normal;font-style:italic;' +
+        'display:flex;justify-content:space-between;align-items:center;' +
+        'background-color:var(--surface-tertiary-color,rgba(255,255,255,0.08));' +
+        'clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}' +
+        '#_miso-live-leaderboard>h3>.lb-count{opacity:0.6;font-size:11px;}' +
+        '#_miso-live-leaderboard .row{display:flex;align-items:center;padding:3px 8px;font-size:13px;font-style:italic;' +
+        'text-shadow:0 0 4px rgba(0,0,0,0.6);' +
+        'background-color:var(--surface-secondary-color,rgba(0,0,0,0.25));margin:2px 6px;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%);}' +
+        '#_miso-live-leaderboard .row.you{background-color:var(--self-highlight-color,#2e4182);}' +
+        '#_miso-live-leaderboard .row .pos{width:2.8em;flex-shrink:0;opacity:0.55;}' +
+        '#_miso-live-leaderboard .row.you .pos{opacity:1;}' +
+        '#_miso-live-leaderboard .row .name{flex-grow:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 5px;}' +
+        '#_miso-live-leaderboard .row.you .name{font-weight:bold;}' +
+        '#_miso-live-leaderboard .row .time{flex-shrink:0;font-variant-numeric:tabular-nums;font-size:12px;opacity:0.85;}' +
+        '#_miso-live-leaderboard .sep{text-align:center;font-size:10px;opacity:0.4;padding:0 8px;letter-spacing:2px;font-style:italic;}' +
+        '#_miso-live-leaderboard .empty{padding:8px 10px;text-align:center;font-size:12px;opacity:0.6;font-style:italic;}';
+    document.head.appendChild(style);
+
+    var panel = null, titleEl = null, rowsEl = null;
+    var currentTrackId   = null;
+    var topEntries       = [];
+    var contextEntries   = [];
+    var totalEntries     = 0;
+    var fetchInFlight    = false;
+    var fetchedTop       = false;
+    var wasFinished      = false;
+    var lastFinishFrames = null;
+    var playerRank       = null;
+    var playerFrames     = null;
+
+    var BASE_URL    = 'https://ptproxy.cwcinc.dev/v6/leaderboard?version=0.6.0&onlyVerified=false';
+    var ENTRY_URL   = 'https://ptproxy.cwcinc.dev/v6/leaderboardUserEntry?version=0.6.0&onlyVerified=false';
+    var PROFILE_SLOT_KEY = 'polytrack_v5_prod_user_slot';
+    var PROFILE_KEY_PREFIX = 'polytrack_v5_prod_user_';
+
+    var _tokenHashPromise = null;
+
+    function getPlayerNickname() {
+        try {
+            var slotRaw = localStorage.getItem(PROFILE_SLOT_KEY);
+            var slot = slotRaw != null ? JSON.parse(slotRaw) : 0;
+            if (!Number.isSafeInteger(slot) || slot < 0) slot = 0;
+            var profileRaw = localStorage.getItem(PROFILE_KEY_PREFIX + slot.toString());
+            if (!profileRaw) return 'YOU';
+            var profile = JSON.parse(profileRaw);
+            if (profile && typeof profile.nickname === 'string' && profile.nickname.length > 0) return profile.nickname;
+        } catch (e) {}
+        return 'YOU';
+    }
+
+    function getUserTokenHash() {
+        if (_tokenHashPromise) return _tokenHashPromise;
+        _tokenHashPromise = (function() {
+            try {
+                var slotRaw = localStorage.getItem(PROFILE_SLOT_KEY);
+                var slot = slotRaw != null ? JSON.parse(slotRaw) : 0;
+                if (!Number.isSafeInteger(slot) || slot < 0) slot = 0;
+                var profileRaw = localStorage.getItem(PROFILE_KEY_PREFIX + slot.toString());
+                if (!profileRaw) return Promise.resolve(null);
+                var profile = JSON.parse(profileRaw);
+                if (!profile || typeof profile.token !== 'string') return Promise.resolve(null);
+                var data = new TextEncoder().encode(profile.token);
+                return crypto.subtle.digest('SHA-256', data).then(function(buf) {
+                    var bytes = new Uint8Array(buf);
+                    var hex = '';
+                    for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+                    return hex;
+                });
+            } catch (e) {
+                return Promise.resolve(null);
+            }
+        })();
+        return _tokenHashPromise;
+    }
+
+    function fetchUserEntry(trackId) {
+        return getUserTokenHash().then(function(tokenHash) {
+            if (!tokenHash) return null;
+            var url = ENTRY_URL + '&trackId=' + encodeURIComponent(trackId) +
+                '&userTokenHash=' + encodeURIComponent(tokenHash);
+            return fetch(url).then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }).then(function(data) {
+                if (data == null || typeof data.position !== 'number' || !Number.isSafeInteger(data.position)) return null;
+                return { position: data.position, frames: typeof data.frames === 'number' ? data.frames : null };
+            });
+        }).catch(function() { return null; });
+    }
+
+    function fetchTop(trackId) {
+        var url = BASE_URL + '&trackId=' + encodeURIComponent(trackId) +
+            '&skip=0&amount=' + FETCH_TOP;
+        return fetch(url).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function(data) {
+            var list = Array.isArray(data.entries) ? data.entries.slice() : [];
+            list.sort(function(a, b) { return a.frames - b.frames; });
+            totalEntries = typeof data.total === 'number' ? data.total : list.length;
+            topEntries = list.map(function(e, i) {
+                return { nickname: e.nickname, frames: e.frames, rank: i + 1 };
+            });
+        });
+    }
+
+    function fetchContext(trackId, rank) {
+        var skip = Math.max(0, rank - 1 - Math.floor(FETCH_CONTEXT / 2));
+        var url = BASE_URL + '&trackId=' + encodeURIComponent(trackId) +
+            '&skip=' + skip + '&amount=' + FETCH_CONTEXT;
+        return fetch(url).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function(data) {
+            var list = Array.isArray(data.entries) ? data.entries.slice() : [];
+            list.sort(function(a, b) { return a.frames - b.frames; });
+            if (typeof data.total === 'number') totalEntries = data.total;
+            contextEntries = list.map(function(e, i) {
+                return { nickname: e.nickname, frames: e.frames, rank: skip + i + 1 };
+            });
+        });
+    }
+
+    function fetchAfterFinish(trackId, finishFrames) {
+        if (fetchInFlight) return;
+        fetchInFlight = true;
+        Promise.all([fetchTop(trackId), fetchUserEntry(trackId)]).then(function(results) {
+            var userEntry = results[1];
+            var rank = (userEntry != null) ? userEntry.position : estimateRank(finishFrames);
+            playerRank   = rank;
+            playerFrames = (userEntry != null && userEntry.frames != null) ? userEntry.frames : finishFrames;
+            return fetchContext(trackId, rank);
+        }).catch(function() {
+            contextEntries = [];
+            playerRank   = null;
+            playerFrames = null;
+        }).then(function() {
+            fetchInFlight = false;
+        });
+    }
+
+    function fetchInitial(trackId) {
+        if (fetchInFlight) return;
+        fetchInFlight = true;
+        Promise.all([fetchTop(trackId), fetchUserEntry(trackId)]).then(function(results) {
+            var userEntry = results[1];
+            if (userEntry != null) {
+                playerRank   = userEntry.position;
+                playerFrames = userEntry.frames;
+                return fetchContext(trackId, userEntry.position);
+            }
+            playerRank   = null;
+            playerFrames = null;
+            contextEntries = [];
+        }).catch(function() {
+            topEntries     = [];
+            totalEntries   = 0;
+            contextEntries = [];
+            playerRank     = null;
+            playerFrames   = null;
+        }).then(function() {
+            fetchInFlight = false;
+        });
+    }
+
+    function estimateRank(finishFrames) {
+        if (finishFrames == null) return 1;
+
+        if (contextEntries.length > 0) {
+            var lo = 0, hi = contextEntries.length;
+            while (lo < hi) {
+                var mid = (lo + hi) >> 1;
+                if (contextEntries[mid].frames <= finishFrames) lo = mid + 1; else hi = mid;
+            }
+            if (lo > 0 && lo < contextEntries.length) {
+                return contextEntries[lo - 1].rank + 1;
+            }
+            if (lo === 0) {
+                return contextEntries[0].rank;
+            }
+            return contextEntries[contextEntries.length - 1].rank + 1;
+        }
+
+        var beaten = 0;
+        for (var i = 0; i < topEntries.length; i++) {
+            if (topEntries[i].frames <= finishFrames) beaten++;
+        }
+        return beaten + 1;
+    }
+
+    function formatTime(ms) {
+        if (ms == null) return '--:--.---';
+        var n = Math.abs(ms);
+        var min = Math.floor(n / 60000);
+        var sec = Math.floor((n - 60000 * min) / 1000);
+        var msec = n - 60000 * min - 1000 * sec;
+        return String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(msec).padStart(3, '0');
+    }
+
+    function ensurePanel() {
+        if (panel) return panel;
+        var uiEl = document.getElementById('ui');
+        if (!uiEl) return null;
+
+        var wrap = document.createElement('div');
+        wrap.id = '_miso-lb-wrap';
+
+        panel = document.createElement('div');
+        panel.id = '_miso-live-leaderboard';
+
+        var title = document.createElement('h3');
+        var titleText = document.createElement('span');
+        titleText.textContent = 'Leaderboard';
+        titleEl = document.createElement('span');
+        titleEl.className = 'lb-count';
+        title.appendChild(titleText);
+        title.appendChild(titleEl);
+        panel.appendChild(title);
+
+        rowsEl = document.createElement('div');
+        rowsEl.className = 'rows';
+        panel.appendChild(rowsEl);
+
+        wrap.appendChild(panel);
+        uiEl.appendChild(wrap);
+
+        return panel;
+    }
+
+    function addRow(rank, name, frames, isYou) {
+        var row = document.createElement('div');
+        var cls = 'row';
+        if (isYou) cls += ' you';
+        row.className = cls;
+
+        var pos = document.createElement('span');
+        pos.className = 'pos';
+        pos.textContent = '#' + rank;
+
+        var nm = document.createElement('span');
+        nm.className = 'name';
+        nm.textContent = name;
+
+        var tm = document.createElement('span');
+        tm.className = 'time';
+        tm.textContent = formatTime(frames);
+
+        row.appendChild(pos);
+        row.appendChild(nm);
+        row.appendChild(tm);
+        rowsEl.appendChild(row);
+    }
+
+    function addSep() {
+        var sep = document.createElement('div');
+        sep.className = 'sep';
+        sep.textContent = '···';
+        rowsEl.appendChild(sep);
+    }
+
+    function render(finishFrames) {
+        var p = ensurePanel();
+        if (!p) return;
+
+        var wrap = p.parentElement;
+        if (!enabled) { if (wrap) wrap.classList.add('hidden'); return; }
+        if (wrap) wrap.classList.remove('hidden');
+
+        var toolbarVisible = !!document.querySelector('.game-toolbar-ui.up.visible');
+        if (wrap) wrap.classList.toggle('faded', toolbarVisible);
+
+        titleEl.textContent = totalEntries > 0 ? totalEntries.toLocaleString() + ' players' : '';
+
+        rowsEl.innerHTML = '';
+
+        var hasTop     = topEntries.length > 0;
+        var hasContext = contextEntries.length > 0;
+
+        var youFrames = playerFrames != null ? playerFrames : finishFrames;
+        var youName   = getPlayerNickname();
+
+        if (!hasTop && totalEntries === 0) {
+            if (youFrames != null) {
+                addRow(1, youName, youFrames, true);
+            } else {
+                var empty = document.createElement('div');
+                empty.className = 'empty';
+                empty.textContent = 'No leaderboard data';
+                rowsEl.appendChild(empty);
+            }
+            return;
+        }
+
+        var topCount = Math.min(topEntries.length, TOP_ROWS);
+        var yourRank = youFrames != null ? (playerRank != null ? playerRank : estimateRank(youFrames)) : null;
+
+        for (var i = 0; i < topCount; i++) {
+            var e = topEntries[i];
+            var isYou = yourRank != null && e.rank === yourRank;
+            addRow(e.rank, isYou ? youName : e.nickname, isYou ? youFrames : e.frames, isYou);
+        }
+
+        if (youFrames != null && yourRank != null && yourRank > topCount && hasContext) {
+            var visibleContext = contextEntries.filter(function(e) {
+                return e.rank > topCount && e.rank !== yourRank;
+            });
+
+            var lo = 0, hi = visibleContext.length;
+            while (lo < hi) {
+                var mid = (lo + hi) >> 1;
+                if (visibleContext[mid].rank < yourRank) lo = mid + 1; else hi = mid;
+            }
+
+            var above = Math.min(CONTEXT_ROWS, lo);
+            var below = Math.min(CONTEXT_ROWS, visibleContext.length - lo);
+            var start = lo - above;
+            var end   = lo + below;
+
+            if (visibleContext[start] && visibleContext[start].rank > topCount + 1) addSep();
+
+            for (var i = start; i < lo; i++) {
+                var e = visibleContext[i];
+                addRow(e.rank, e.nickname, e.frames, false);
+            }
+            addRow(yourRank, youName, youFrames, true);
+            for (var i = lo; i < end; i++) {
+                var e = visibleContext[i];
+                addRow(e.rank, e.nickname, e.frames, false);
+            }
+        }
+    }
+
+    function update() {
+        requestAnimationFrame(update);
+
+        if (!document.querySelector('.game-ui')) {
+            if (panel && panel.parentElement) panel.parentElement.classList.add('hidden');
+            currentTrackId  = null;
+            fetchedTop      = false;
+            return;
+        }
+
+        var track = (typeof window.__getCurrentTrack === 'function') ? window.__getCurrentTrack() : null;
+        var trackId = (track && typeof track.getId === 'function') ? track.getId() : null;
+
+        if (trackId !== currentTrackId) {
+            currentTrackId   = trackId;
+            fetchedTop       = false;
+            topEntries       = [];
+            contextEntries   = [];
+            totalEntries     = 0;
+            wasFinished      = false;
+            lastFinishFrames = null;
+            playerRank       = null;
+            playerFrames     = null;
+        }
+
+        if (trackId != null && !fetchedTop && !fetchInFlight) {
+            fetchedTop = true;
+            fetchInitial(trackId);
+        }
+
+        var playerState = (typeof window.__getPlayerState === 'function') ? window.__getPlayerState() : null;
+        var finished = false;
+
+        if (playerState) {
+            finished = !!playerState.hasFinished();
+        }
+
+        if (finished && !wasFinished) {
+            wasFinished = true;
+            var ft = playerState.getFinishTime();
+            lastFinishFrames = ft ? ft.numberOfFrames : null;
+
+            if (trackId != null) {
+                var refreshTrackId = trackId;
+                var refreshFrames  = lastFinishFrames;
+                setTimeout(function() {
+                    if (refreshTrackId === currentTrackId) fetchAfterFinish(refreshTrackId, refreshFrames);
+                }, REFRESH_DELAY_MS);
+            }
+        } else if (!finished) {
+            wasFinished = false;
+        }
+
+        render(lastFinishFrames);
+    }
+
+    window.addEventListener('keydown', function(e) {
+        if (e.code !== TOGGLE_KEY) return;
+        var focused = document.activeElement;
+        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)) return;
+        enabled = !enabled;
+        try { localStorage.setItem(ENABLED_STORAGE_KEY, enabled ? 'true' : 'false'); } catch (ex) {}
+        if (panel) panel.classList.toggle('hidden', !enabled);
+    });
+
+    function tryInit() {
+        var uiEl = document.getElementById('ui');
+        if (!uiEl) { setTimeout(tryInit, 100); return; }
         requestAnimationFrame(update);
     }
     tryInit();
