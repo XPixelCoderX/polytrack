@@ -52890,12 +52890,12 @@ _applyVibrantStrength();
             const t = document.createElement("a");
             t.href = "https://github.com/missonance",
             t.target = "_blank",
-            t.textContent = "https://github.com/missonance - " + e.get("Version") + " 0.5.2",
+            t.textContent = "https://github.com/missonance",
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
-            n.href = "https://deltarune.com/",
+            n.href = "https://www.kodub.com",
             n.target = "_blank",
-            n.textContent = 'deltarune.com "My Castle Town" by Toby Fox',
+            n.textContent = 'MisoTweaks will no longer be receiving updates. Do not contact me about this.',
             C.get(this, Mc, "f").appendChild(n)
         }
         ,
@@ -53021,7 +53021,7 @@ _applyVibrantStrength();
                         e.classList.remove("hidden")
                     }
                     ))),
-                    e.src = "images/discord.svg",
+                   
                     C.get(this, Tc, "f").appendChild(e)
                 }
                 C.set(this, Mc, document.createElement("div"), "f"),
