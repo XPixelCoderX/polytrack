@@ -52895,7 +52895,7 @@ _applyVibrantStrength();
             const n = document.createElement("a");
             n.href = "https://www.kodub.com",
             n.target = "_blank",
-            n.textContent = 'MisoTweaks will no longer be receiving updates. Do not contact me about this.',
+            n.textContent = 'misotweaks is back C:',
             C.get(this, Mc, "f").appendChild(n)
         }
         ,
