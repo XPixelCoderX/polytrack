@@ -1730,7 +1730,6 @@
             t > s && ([t,s] = [s,t]);
             e > o && ([e,o] = [o,e]);
             n > a && ([n,a] = [a,n]);
-            get(this, editor_isLargeGrid, "f") && (t -= 2, n -= 2, s += 1, a += 1);
             const _step = get(this, editor_isLargeGrid, "f") ? 4 : 1;
             const _partIdx = get(this, editor_selectedPartIndex, "f");
             if (null == _partIdx || _partIdx < 0) return;
@@ -1739,16 +1738,11 @@
             const _color = get(this, Ft, "m", getEffectiveColor).call(this);
             const _removed = [], _added = [];
             const _partTiles = get(this, editor_partRegistry, "f").getPart(_entry.id).configuration.tiles.rotated(get(this, editor_currentRotation, "f"), get(this, editor_currentAxis, "f"));
-            // Build list of all anchor positions first.
             const _anchors = [];
             for (let _fx = t; _fx <= s; _fx += _step)
                 for (let _fy = e; _fy <= o; _fy++)
                     for (let _fz = n; _fz <= a; _fz += _step)
                         _anchors.push([_fx, _fy, _fz]);
-            // Pass 1: delete everything that would be occupied by any placed part.
-            // Must be done before any placement so that a multi-tile part placed at
-            // anchor A doesn't get wiped by the delete pass for the next anchor B
-            // (whose footprint overlaps A's tiles).
             for (const [_fx, _fy, _fz] of _anchors) {
                 _partTiles.forEach((_tx, _ty, _tz) => {
                     const _del = get(this, editor_track, "f").deletePartsAt(_fx + _tx, _fy + _ty, _fz + _tz);
@@ -1758,7 +1752,6 @@
                     }
                 });
             }
-            // Pass 2: place all parts now that the region is clear.
             for (const [_fx, _fy, _fz] of _anchors) {
                 let _so = null;
                 null != get(this, editor_partRegistry, "f").getPart(_entry.id).configuration.startOffset && (_so = get(this, editor_track, "f").getNextStartOrder());
@@ -3488,7 +3481,7 @@
                 const _fillBtn = document.createElement("button");
                 _fillBtn.className = "button",
                 _fillBtn.title = "Fill region — select a part, then click two corners",
-                _fillBtn.innerHTML = '<img class="button-icon" src="images/copy.svg" style="filter:hue-rotate(200deg) brightness(1.3)">',
+                _fillBtn.innerHTML = '<svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" style="width:20px;height:20px;vertical-align:bottom;pointer-events:none;color:#fff"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
                 _fillBtn.addEventListener("click", ( () => {
                     get(this, editor_audioManager, "f").playUIClick();
                     const _partIdx = get(this, editor_selectedPartIndex, "f");
