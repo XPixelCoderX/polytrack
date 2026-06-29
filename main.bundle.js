@@ -9290,6 +9290,11 @@ _applyVibrantStrength();
                 const u = document.createElement("button");
                 u.className = "button",
                 u.addEventListener("click", ( () => {
+                    if (e === 'custom' && _multiSelect.isActive()) {
+                        i.get(this, w, "f").playUIClick();
+                        _multiSelect.toggle(s);
+                        return;
+                    }
                     i.get(this, w, "f").playUIClick(),
                     i.get(this, M, "f").call(this, n, r, a, e, s, o)
                 }
@@ -9352,9 +9357,19 @@ _applyVibrantStrength();
                         ev.stopPropagation();
                         i.get(this, w, "f").playUIClick();
                         const _self = this;
-                        _showTrackContextMenu(_moreBtn, s, _customFolders.getFolderForTrack(s), () => { _self.refresh(); });
+                        _showTrackContextMenu(_moreBtn, s, _customFolders.getFolderForTrack(s), () => { _self.refresh(); }, i.get(this, U, "f"));
                     }));
-                    c.appendChild(_moreBtn)
+                    c.appendChild(_moreBtn);
+                    const _msOverlay = document.createElement('div');
+                    _msOverlay.className = 'cfm-ms-overlay';
+                    _msOverlay.dataset.trackId = s;
+                    _msOverlay.addEventListener('click', (ev) => {
+                        if (!_multiSelect.isActive()) return;
+                        ev.stopPropagation();
+                        i.get(this, w, "f").playUIClick();
+                        _multiSelect.toggle(s);
+                    });
+                    c.appendChild(_msOverlay)
                 }
 
                 i.get(this, B, "f").push({
@@ -9417,7 +9432,7 @@ _applyVibrantStrength();
             }
             ;
             
-            const _customFolders = (() => {
+            const _customFolders = window._customFolders = (() => {
                 const STORAGE_KEY = 'customTrackFolders';
                 
                 function load() {
@@ -9591,17 +9606,111 @@ _applyVibrantStrength();
             }
 
             
-            function _showTrackContextMenu(anchorEl, trackId, currentFolder, refreshCallback) {
+
+            const _multiSelect = (() => {
+                let _active = false;
+                let _selected = new Set();
+                let _refreshCb = null;
+                let _container = null;
+                function _renderActionBar() {
+                    document.querySelector('.cfm-multi-bar')?.remove();
+                    if (!_active || !_container) return;
+                    const bar = document.createElement('div');
+                    bar.className = 'cfm-multi-bar';
+                    const info = document.createElement('span');
+                    info.className = 'cfm-multi-info';
+                    info.textContent = _selected.size + ' selected';
+                    bar.appendChild(info);
+                    const folders = _customFolders.getFolders();
+                    if (_selected.size > 0 && folders.length > 0) {
+                        folders.forEach(folder => {
+                            const btn = document.createElement('button');
+                            btn.className = 'cfm-multi-folder-btn';
+                            btn.innerHTML = '<img src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27white%27%3E%3Cpath d=%27M10 4H2v16h20V6H12l-2-2z%27/%3E%3C/svg%3E" style="width:1em;height:1em;vertical-align:middle;margin-right:6px;pointer-events:none">' + folder;
+                            btn.addEventListener('click', () => {
+                                _selected.forEach(id => _customFolders.assignTrack(id, folder));
+                                _multiSelect.exit();
+                            });
+                            bar.appendChild(btn);
+                        });
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'cfm-multi-folder-btn cfm-multi-remove-btn';
+                        removeBtn.textContent = '\u2715 Remove from folder';
+                        removeBtn.addEventListener('click', () => {
+                            _selected.forEach(id => _customFolders.unassignTrack(id));
+                            _multiSelect.exit();
+                        });
+                        bar.appendChild(removeBtn);
+                    } else if (_selected.size > 0) {
+                        const hint = document.createElement('span');
+                        hint.className = 'cfm-multi-hint';
+                        hint.textContent = 'Create a folder first using the Folders button';
+                        bar.appendChild(hint);
+                    }
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'cfm-multi-cancel-btn';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.addEventListener('click', () => _multiSelect.exit());
+                    bar.appendChild(cancelBtn);
+                    _container.insertBefore(bar, _container.firstChild);
+                }
+                return {
+                    isActive() { return _active; },
+                    isSelected(id) { return _selected.has(id); },
+                    enter(container, refreshCb) {
+                        _active = true;
+                        _selected = new Set();
+                        _container = container;
+                        _refreshCb = refreshCb;
+                        if (container) container.classList.add('cfm-selecting');
+                        refreshCb();
+                        _renderActionBar();
+                    },
+                    toggle(id) {
+                        if (_selected.has(id)) _selected.delete(id); else _selected.add(id);
+                        document.querySelectorAll('.cfm-ms-overlay').forEach(el => {
+                            if (el.dataset.trackId === id) el.classList.toggle('cfm-ms-checked', _selected.has(id));
+                        });
+                        _renderActionBar();
+                    },
+                    exit() {
+                        _active = false;
+                        _selected = new Set();
+                        document.querySelector('.cfm-multi-bar')?.remove();
+                        if (_container) _container.classList.remove('cfm-selecting');
+                        const cb = _refreshCb;
+                        _refreshCb = null;
+                        _container = null;
+                        if (cb) cb();
+                    }
+                };
+            })();
+
+            function _showTrackContextMenu(anchorEl, trackId, currentFolder, refreshCallback, _customTracksContainer) {
                 document.querySelector('.cfm-context-menu')?.remove();
                 const menu = document.createElement('div');
                 menu.className = 'cfm-context-menu';
 
                 const folders = _customFolders.getFolders();
 
+
+                const selectMultiItem = document.createElement('button');
+                selectMultiItem.className = 'cfm-menu-item';
+                selectMultiItem.textContent = '\u2610  Select multiple\u2026';
+                selectMultiItem.addEventListener('click', () => {
+                    menu.remove();
+                    _multiSelect.enter(_customTracksContainer || document.querySelector('.tracks-container.open'), refreshCallback);
+                });
+                menu.appendChild(selectMultiItem);
+
+                const sep = document.createElement('div');
+                sep.style.cssText = 'border-top:1px solid rgba(255,255,255,0.12);margin:4px 0';
+                menu.appendChild(sep);
+
                 if (currentFolder) {
                     const removeItem = document.createElement('button');
                     removeItem.className = 'cfm-menu-item';
-                    removeItem.textContent = '✕  Remove from folder';
+                    removeItem.textContent = '\u2715  Remove from folder';
                     removeItem.addEventListener('click', () => {
                         _customFolders.unassignTrack(trackId);
                         menu.remove();
@@ -24571,7 +24680,8 @@ _applyVibrantStrength();
                 e[e.EditorClearTrail = 33] = "EditorClearTrail",
                 e[e.EditorToggleCoords = 34] = "EditorToggleCoords",
                 e[e.ToggleGhosts = 35] = "ToggleGhosts",
-                e[e.ToggleInputOverlay = 36] = "ToggleInputOverlay"
+                e[e.ToggleInputOverlay = 36] = "ToggleInputOverlay",
+                e[e.ToggleLeaderboard = 37] = "ToggleLeaderboard"
             }(i || (i = {}));
             const r = i
         }
@@ -28934,7 +29044,85 @@ _applyVibrantStrength();
               , p = l()(c)
               , f = l()(h)
               , g = l()(d);
-            u.push([e.id, `.track-selection-ui {\n\tposition: absolute;\n\tbottom: 0;\n\tdisplay: flex;\n\tflex-direction: column;\n\twidth: 100%;\n\theight: 100%;\n\toverflow: hidden;\n\ttext-align: left;\n}\n.track-selection-ui.hidden {\n\tdisplay: none;\n}\n\n.track-selection-ui > .safe-area-left {\n\tposition: absolute;\n\tleft: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-left);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .safe-area-right {\n\tposition: absolute;\n\tright: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-right);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .bar {\n\tdisplay: flex;\n\tmargin: 0;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\twidth: 100%;\n\tbox-sizing: border-box;\n\tbackground-color: var(--surface-color);\n\ttext-align: left;\n\n\tpointer-events:auto;\n}\n.track-selection-ui > .bar > .button {\n\tmargin: 8px 12px;\n}\n\n.track-selection-ui > .bar > .search-bar-container {\n\tposition: relative;\n\tdisplay: flex;\n\tflex-grow: 1;\n}\n.track-selection-ui > .bar > .search-bar-container > input {\n\tmargin: 8px -10px;\n\tpadding: 0 20px;\n\tflex-grow: 1;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tcolor: var(--text-color);\n\ttext-indent: 2px; /* Without this the italic text will be cut off on the left side. */\n}\n.track-selection-ui > .bar > .search-bar-container > img {\n\tmargin: 8px -10px 8px 0;\n\tpadding: 0 16px;\n\twidth: 24px;\n\tbackground-color: var(--button-hover-color);\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n\n.track-selection-ui .category-container {\n\tdisplay: flex;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .category-container > button {\n\tposition: relative;\n\tmargin: 0 -3px;\n\tpadding: 0.6em 0;\n\tflex-grow: 1;\n\tbackground-color: transparent;\n\tfont-size: 2.8vw;\n\tfont-weight: bold;\n\ttext-shadow: 2px 2px 0 #112052, 0 0 10px #000, 0 0 10px #000;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:first-of-type {\n\tclip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:last-of-type {\n\tclip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);\n}\n.track-selection-ui .category-container > button::before {\n\tcontent: "";\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-position: center;\n\tbackground-size: cover;\n\tfilter: blur(2px);\n\ttransition: filter 0.2s ease-in-out,  0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button.official::before {\n\tbackground-image: url(${p});\n}\n.track-selection-ui .category-container > button.community::before {\n\tbackground-image: url(${f});\n}\n.track-selection-ui .category-container > button.custom::before {\n\tbackground-image: url(${g});\n}\n.track-selection-ui .category-container > button:hover::before {\n\tfilter: none;\n\ttransform: scale(1.1);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover::before {\n\t\tfilter: blur(2px);\n\t\ttransform: none;\n\t}\n\n\t.track-selection-ui .category-container > button:active::before {\n\t\tfilter: none;\n\t\ttransform: scale(1.1);\n\t}\n}\n.track-selection-ui .category-container > button.selected::before {\n\tfilter: none;\n}\n.track-selection-ui .category-container > button::after {\n\tbackground-color: transparent;\n}\n.track-selection-ui .category-container > button.selected::after {\n\twidth: 100%;\n}\n\n.track-selection-ui .category-container > button > .cover {\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-color: rgba(17, 32, 82, 0.75);\n\ttransition: background-color 0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button:hover > .cover {\n\tbackground-color: rgba(51, 75, 119, 0.5);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover > .cover {\n\t\tbackground-color: rgba(17, 32, 82, 0.75);\n\t}\n}\n.track-selection-ui .category-container > button:active > .cover {\n\tbackground-color: rgba(21, 31, 65, 0.5);\n}\n.track-selection-ui .category-container > button.selected > .cover {\n\tbackground-color: transparent;\n}\n\n@media (max-width: 1150px) {\n\t.track-selection-ui .category-container > button {\n\t\tfont-size: 32.2px;\n\t}\n}\n\n.track-selection-ui .tracks-container {\n\tmargin: 0;\n\tpadding: 20px calc(60px + var(--safe-area-right)) 20px calc(60px + var(--safe-area-left));\n\tbox-sizing: border-box;\n\twidth: 100%;\n\tflex-grow: 1;\n\toverflow-y: auto;\n\tpointer-events: auto;\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.open {\n\tdisplay: block;\n}\n.track-selection-ui.with-background .tracks-container {\n\tbackground-color: var(--surface-overlay-color);\n\t-webkit-backdrop-filter: blur(4px);\n\tbackdrop-filter: blur(4px);\n}\n\n.track-selection-ui .tracks-container.no-group-containers {\n\tpadding-top: 50px;\n}\n\n.track-selection-ui .group-title.custom-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.custom-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.custom-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .folder-tracks.collapsed {\n\tdisplay: none;\n}\n.track-selection-ui .group-title.community-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .group-title.community-group {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-group::after {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-left: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-group.collapsed::after {\n\ttransform: rotate(-90deg);\n}\n\n.track-selection-ui .tracks-container > .empty {\n\tmargin: 100px;\n\tcolor: var(--text-color);\n\ttext-align: center;\n}\n.track-selection-ui .tracks-container > .empty > .title {\n\tfont-size: 48px;\n}\n.track-selection-ui .tracks-container > .empty > .description {\n\tmargin: 20px 0 0 0;\n\tfont-size: 32px;\n\topacity: 0.75;\n}\n\n.track-selection-ui .group-title {\n\tmargin: 0.5em 0.4em;\n\tpadding: 0;\n\tfont-size: 50px;\n\tfont-weight: normal;\n\tborder-bottom-width: 4px;\n\tborder-bottom-style: solid;\n\tcolor: var(--text-color);\n\tborder-image: linear-gradient(to right, var(--text-color), transparent) 1;\n\t\n}\n.track-selection-ui .group-title.winter {\n\tcolor: #bed8f7;\n\tborder-image: linear-gradient(to right, #bed8f7, transparent) 1;\n}\n.track-selection-ui .group-title.desert {\n\tcolor: #ede2af;\n\tborder-image: linear-gradient(to right, #ede2af, transparent) 1;\n}\n\n.track-selection-ui .group-title > img {\n\tmargin: 6px 8px;\n\twidth: 36px;\n\theight: 36px;\n\tvertical-align: bottom;\n}\n\n.track-selection-ui .tracks-container .track {\n\tposition: relative;\n\tdisplay: inline-block;\n}\n\n.track-selection-ui .tracks-container .track button {\n\tmargin: 10px;\n\tpadding: 0;\n\tcolor: var(--text-color);\n\tfont-size: 32px;\n}\n.track-selection-ui .tracks-container .track button:after {\n\tborder-bottom: none;\n}\n.track-selection-ui .tracks-container .track button:focus-visible {\n\ttext-decoration: none;\n}\n\n.track-selection-ui .track-title {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 25px;\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .tracks-container .track button:focus-visible .track-title {\n\ttext-decoration: underline;\n}\n.track-selection-ui .track-title > p {\n\tmargin: 0;\n\tpadding: 0 22px;\n\twidth: 208px;\n\tbox-sizing: border-box;\n\twhite-space: nowrap;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n}\n\n.track-selection-ui .track > .button > canvas, .track-selection-ui .track > .button > img:not(.environment) {\n\tmargin: 0;\n\tpadding: 20px 40px;\n\twidth: 128px;\n\theight: 128px;\n\tobject-fit: contain;\n\t-webkit-filter: drop-shadow(0 0 3px #000);\n\tfilter: drop-shadow(0 0 3px #000);\n\timage-rendering: pixelated;\n\tpointer-events: none;\n}\n.track-selection-ui .track > .button > img:not(.environment) {\n\ttransition: opacity 0.25s ease-out;\n}\n.track-selection-ui .track > .button > img:not(.environment).loading {\n\topacity: 0;\n}\n\n.track-selection-ui .track .environment {\n\tposition: absolute;\n\tright: 14px;\n\tbottom: 40px;\n\twidth: 24px;\n\topacity: 0.2;\n\tpointer-events: none;\n}\n\n.track-selection-ui .record {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 24px;\n\tbackground-color: var(--surface-secondary-color);\n\tcolor: var(--text-color);\n}\n\n.track-selection-ui .delete-button {\n\tposition: absolute;\n\ttop: 7px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.track-selection-ui .delete-button:hover {\n\tbackground-color: var(--button-hover-color);\n}\n@media (hover: none) {\n\t.track-selection-ui .delete-button:hover {\n\t\tbackground-color: var(--button-color);\n\t}\n}\n.track-selection-ui .delete-button:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .delete-button > img {\n\tmargin: 0;\n\tpadding: 0;\n\theight: 20px;\n\tvertical-align: top;\n\tpointer-events: none;\n}\n\n.cfm-more-btn {\n\tposition: absolute;\n\ttop: 34px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.cfm-more-btn:hover { background-color: var(--button-hover-color); }\n.cfm-more-btn:active { background-color: var(--button-active-color); }\n\n.cfm-context-menu {\n\tz-index: 9999;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 6px;\n\tpadding: 4px 0;\n\tmin-width: 220px;\n\tbox-shadow: 0 4px 16px rgba(0,0,0,0.5);\n}\n.cfm-menu-item {\n\tdisplay: block;\n\twidth: 100%;\n\tpadding: 10px 16px;\n\ttext-align: left;\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 24px;\n\tcursor: pointer;\n}\n.cfm-menu-item:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-menu-hint {\n\tpadding: 10px 16px;\n\tfont-size: 20px;\n\topacity: 0.6;\n\tcolor: var(--text-color, #fff);\n}\n\n.custom-folder-manager-panel {\n\tposition: absolute;\n\ttop: 20px;\n\tright: 20px;\n\tz-index: 100;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: 1px solid rgba(255,255,255,0.15);\n\tborder-radius: 8px;\n\tpadding: 16px;\n\tmin-width: 320px;\n\tbox-shadow: 0 4px 24px rgba(0,0,0,0.6);\n\tcolor: var(--text-color, #fff);\n\tpointer-events: auto;\n}\n.cfm-header {\n\tdisplay: flex;\n\talign-items: center;\n\tjustify-content: space-between;\n\tmargin-bottom: 12px;\n\tfont-size: 30px;\n\tfont-weight: bold;\n}\n.cfm-close {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 28px;\n\tcursor: pointer;\n\tpadding: 0 4px;\n\topacity: 0.7;\n}\n.cfm-close:hover { opacity: 1; }\n.cfm-list { margin-bottom: 12px; }\n.cfm-empty { font-size: 24px; opacity: 0.5; padding: 8px 0; }\n.cfm-row {\n\tdisplay: flex;\n\talign-items: center;\n\tgap: 8px;\n\tpadding: 6px 0;\n\tborder-bottom: 1px solid rgba(255,255,255,0.08);\n}\n.cfm-folder-name { flex: 1; font-size: 26px; }\n.cfm-btn {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 22px;\n\tcursor: pointer;\n\tpadding: 2px 6px;\n\tborder-radius: 4px;\n}\n.cfm-btn:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-footer {\n\tdisplay: flex;\n\tgap: 8px;\n\tmargin-top: 8px;\n}\n.cfm-input {\n\tflex: 1;\n\tpadding: 6px 10px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: 1px solid rgba(255,255,255,0.2);\n\tbackground-color: rgba(255,255,255,0.05);\n\tcolor: var(--text-color, #fff);\n}\n.cfm-add-btn {\n\tpadding: 6px 14px;\n\tfont-size: 24px;\n\tborder-radius: 4px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color, #fff);\n\tcursor: pointer;\n}\n.cfm-add-btn:hover { background-color: var(--button-hover-color); }\n.cfm-sort-select {\n\tmargin: 8px 0 8px 12px;\n\tpadding: 0 36px 0 24px;\n\theight: auto;\n\tmin-height: 52px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tfont-weight: bold;\n\tborder-radius: 0;\n\tborder: none;\n\t-webkit-appearance: none;\n\tappearance: none;\n\tbackground-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");\n\tbackground-repeat: no-repeat;\n\tbackground-position: calc(100% - 16px) center;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color);\n\tcursor: pointer;\n}\n.cfm-sort-select:hover { background-color: var(--button-hover-color); }\n\n.track-selection-ui .tracks-container.compact .track button {\n\tmargin: 4px;\n}\n.track-selection-ui .tracks-container.compact .track > .button > canvas,\n.track-selection-ui .tracks-container.compact .track > .button > img:not(.environment) {\n\tpadding: 8px 16px;\n\twidth: 64px;\n\theight: 64px;\n}\n.track-selection-ui .tracks-container.compact .track-title > p {\n\twidth: 96px;\n\tpadding: 0 8px;\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .track-title {\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .record {\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.compact .track .environment {\n\tbottom: 20px;\n\tright: 6px;\n\twidth: 16px;\n}\n.track-selection-ui .tracks-container.compact .delete-button {\n\ttop: 3px;\n\tright: 3px;\n}\n.track-selection-ui .tracks-container.compact .cfm-more-btn {\n\ttop: 18px;\n\tright: 3px;\n}\n.track-selection-ui .track .ts-compact-btn {\n\tposition: absolute;\n\tbottom: 10px;\n\tright: 10px;\n\tmargin: 0 !important;\n\tpadding: 0;\n\twidth: 44px;\n\theight: 44px;\n\tdisplay: flex !important;\n\talign-items: center;\n\tjustify-content: center;\n\tborder: none;\n\tborder-radius: 2px;\n\tbackground-color: var(--button-color);\n\topacity: 0.6;\n\tpointer-events: auto;\n\tcursor: pointer;\n\tz-index: 2;\n\ttransition: opacity 0.15s ease;\n\tline-height: 0;\n}\n.track-selection-ui .track .ts-compact-btn:hover {\n\topacity: 1;\n\tbackground-color: var(--button-hover-color);\n}\n.track-selection-ui .track .ts-compact-btn:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .track .ts-compact-btn svg {\n\tdisplay: block;\n\tmargin: auto;\n}\n`, ""]);
+            u.push([e.id, `.track-selection-ui {\n\tposition: absolute;\n\tbottom: 0;\n\tdisplay: flex;\n\tflex-direction: column;\n\twidth: 100%;\n\theight: 100%;\n\toverflow: hidden;\n\ttext-align: left;\n}\n.track-selection-ui.hidden {\n\tdisplay: none;\n}\n\n.track-selection-ui > .safe-area-left {\n\tposition: absolute;\n\tleft: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-left);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .safe-area-right {\n\tposition: absolute;\n\tright: 0;\n\ttop: 0;\n\tz-index: 1;\n\twidth: var(--safe-area-right);\n\theight: 100%;\n\tbackground-color: var(--surface-color);\n}\n\n.track-selection-ui > .bar {\n\tdisplay: flex;\n\tmargin: 0;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\twidth: 100%;\n\tbox-sizing: border-box;\n\tbackground-color: var(--surface-color);\n\ttext-align: left;\n\n\tpointer-events:auto;\n}\n.track-selection-ui > .bar > .button {\n\tmargin: 8px 12px;\n}\n\n.track-selection-ui > .bar > .search-bar-container {\n\tposition: relative;\n\tdisplay: flex;\n\tflex-grow: 1;\n}\n.track-selection-ui > .bar > .search-bar-container > input {\n\tmargin: 8px -10px;\n\tpadding: 0 20px;\n\tflex-grow: 1;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tcolor: var(--text-color);\n\ttext-indent: 2px; /* Without this the italic text will be cut off on the left side. */\n}\n.track-selection-ui > .bar > .search-bar-container > img {\n\tmargin: 8px -10px 8px 0;\n\tpadding: 0 16px;\n\twidth: 24px;\n\tbackground-color: var(--button-hover-color);\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n\n.track-selection-ui .category-container {\n\tdisplay: flex;\n\tpadding: 0 var(--safe-area-right) 0 var(--safe-area-left);\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .category-container > button {\n\tposition: relative;\n\tmargin: 0 -3px;\n\tpadding: 0.6em 0;\n\tflex-grow: 1;\n\tbackground-color: transparent;\n\tfont-size: 2.8vw;\n\tfont-weight: bold;\n\ttext-shadow: 2px 2px 0 #112052, 0 0 10px #000, 0 0 10px #000;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:first-of-type {\n\tclip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.track-selection-ui .category-container > button:last-of-type {\n\tclip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);\n}\n.track-selection-ui .category-container > button::before {\n\tcontent: "";\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-position: center;\n\tbackground-size: cover;\n\tfilter: blur(2px);\n\ttransition: filter 0.2s ease-in-out,  0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button.official::before {\n\tbackground-image: url(${p});\n}\n.track-selection-ui .category-container > button.community::before {\n\tbackground-image: url(${f});\n}\n.track-selection-ui .category-container > button.custom::before {\n\tbackground-image: url(${g});\n}\n.track-selection-ui .category-container > button:hover::before {\n\tfilter: none;\n\ttransform: scale(1.1);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover::before {\n\t\tfilter: blur(2px);\n\t\ttransform: none;\n\t}\n\n\t.track-selection-ui .category-container > button:active::before {\n\t\tfilter: none;\n\t\ttransform: scale(1.1);\n\t}\n}\n.track-selection-ui .category-container > button.selected::before {\n\tfilter: none;\n}\n.track-selection-ui .category-container > button::after {\n\tbackground-color: transparent;\n}\n.track-selection-ui .category-container > button.selected::after {\n\twidth: 100%;\n}\n\n.track-selection-ui .category-container > button > .cover {\n\tposition: absolute;\n\ttop: 0;\n\tleft: 0;\n\tz-index: -1;\n\twidth: 100%;\n\theight: 100%;\n\tbackground-color: rgba(17, 32, 82, 0.75);\n\ttransition: background-color 0.2s ease-in-out;\n}\n.track-selection-ui .category-container > button:hover > .cover {\n\tbackground-color: rgba(51, 75, 119, 0.5);\n}\n@media (hover: none) {\n\t.track-selection-ui .category-container > button:hover > .cover {\n\t\tbackground-color: rgba(17, 32, 82, 0.75);\n\t}\n}\n.track-selection-ui .category-container > button:active > .cover {\n\tbackground-color: rgba(21, 31, 65, 0.5);\n}\n.track-selection-ui .category-container > button.selected > .cover {\n\tbackground-color: transparent;\n}\n\n@media (max-width: 1150px) {\n\t.track-selection-ui .category-container > button {\n\t\tfont-size: 32.2px;\n\t}\n}\n\n.track-selection-ui .tracks-container {\n\tmargin: 0;\n\tpadding: 20px calc(60px + var(--safe-area-right)) 20px calc(60px + var(--safe-area-left));\n\tbox-sizing: border-box;\n\twidth: 100%;\n\tflex-grow: 1;\n\toverflow-y: auto;\n\tpointer-events: auto;\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.open {\n\tdisplay: block;\n}\n.track-selection-ui.with-background .tracks-container {\n\tbackground-color: var(--surface-overlay-color);\n\t-webkit-backdrop-filter: blur(4px);\n\tbackdrop-filter: blur(4px);\n}\n\n.track-selection-ui .tracks-container.no-group-containers {\n\tpadding-top: 50px;\n}\n\n.track-selection-ui .group-title.custom-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.custom-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.custom-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .folder-tracks.collapsed {\n\tdisplay: none;\n}\n.track-selection-ui .group-title.community-folder {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-folder::before {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-right: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-folder.collapsed::before {\n\ttransform: rotate(-90deg);\n}\n.track-selection-ui .group-title.community-group {\n\tcursor: pointer;\n\tuser-select: none;\n}\n.track-selection-ui .group-title.community-group::after {\n\tcontent: '▼';\n\tdisplay: inline-block;\n\tmargin-left: 16px;\n\tfont-size: 32px;\n\ttransition: transform 0.2s ease;\n}\n.track-selection-ui .group-title.community-group.collapsed::after {\n\ttransform: rotate(-90deg);\n}\n\n.track-selection-ui .tracks-container > .empty {\n\tmargin: 100px;\n\tcolor: var(--text-color);\n\ttext-align: center;\n}\n.track-selection-ui .tracks-container > .empty > .title {\n\tfont-size: 48px;\n}\n.track-selection-ui .tracks-container > .empty > .description {\n\tmargin: 20px 0 0 0;\n\tfont-size: 32px;\n\topacity: 0.75;\n}\n\n.track-selection-ui .group-title {\n\tmargin: 0.5em 0.4em;\n\tpadding: 0;\n\tfont-size: 50px;\n\tfont-weight: normal;\n\tborder-bottom-width: 4px;\n\tborder-bottom-style: solid;\n\tcolor: var(--text-color);\n\tborder-image: linear-gradient(to right, var(--text-color), transparent) 1;\n\t\n}\n.track-selection-ui .group-title.winter {\n\tcolor: #bed8f7;\n\tborder-image: linear-gradient(to right, #bed8f7, transparent) 1;\n}\n.track-selection-ui .group-title.desert {\n\tcolor: #ede2af;\n\tborder-image: linear-gradient(to right, #ede2af, transparent) 1;\n}\n\n.track-selection-ui .group-title > img {\n\tmargin: 6px 8px;\n\twidth: 36px;\n\theight: 36px;\n\tvertical-align: bottom;\n}\n\n.track-selection-ui .tracks-container .track {\n\tposition: relative;\n\tdisplay: inline-block;\n}\n\n.track-selection-ui .tracks-container .track button {\n\tmargin: 10px;\n\tpadding: 0;\n\tcolor: var(--text-color);\n\tfont-size: 32px;\n}\n.track-selection-ui .tracks-container .track button:after {\n\tborder-bottom: none;\n}\n.track-selection-ui .tracks-container .track button:focus-visible {\n\ttext-decoration: none;\n}\n\n.track-selection-ui .track-title {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 25px;\n\tbackground-color: var(--surface-secondary-color);\n}\n.track-selection-ui .tracks-container .track button:focus-visible .track-title {\n\ttext-decoration: underline;\n}\n.track-selection-ui .track-title > p {\n\tmargin: 0;\n\tpadding: 0 22px;\n\twidth: 208px;\n\tbox-sizing: border-box;\n\twhite-space: nowrap;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n}\n\n.track-selection-ui .track > .button > canvas, .track-selection-ui .track > .button > img:not(.environment) {\n\tmargin: 0;\n\tpadding: 20px 40px;\n\twidth: 128px;\n\theight: 128px;\n\tobject-fit: contain;\n\t-webkit-filter: drop-shadow(0 0 3px #000);\n\tfilter: drop-shadow(0 0 3px #000);\n\timage-rendering: pixelated;\n\tpointer-events: none;\n}\n.track-selection-ui .track > .button > img:not(.environment) {\n\ttransition: opacity 0.25s ease-out;\n}\n.track-selection-ui .track > .button > img:not(.environment).loading {\n\topacity: 0;\n}\n\n.track-selection-ui .track .environment {\n\tposition: absolute;\n\tright: 14px;\n\tbottom: 40px;\n\twidth: 24px;\n\topacity: 0.2;\n\tpointer-events: none;\n}\n\n.track-selection-ui .record {\n\tmargin: 0;\n\tpadding: 4px;\n\tfont-size: 24px;\n\tbackground-color: var(--surface-secondary-color);\n\tcolor: var(--text-color);\n}\n\n.track-selection-ui .delete-button {\n\tposition: absolute;\n\ttop: 7px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.track-selection-ui .delete-button:hover {\n\tbackground-color: var(--button-hover-color);\n}\n@media (hover: none) {\n\t.track-selection-ui .delete-button:hover {\n\t\tbackground-color: var(--button-color);\n\t}\n}\n.track-selection-ui .delete-button:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .delete-button > img {\n\tmargin: 0;\n\tpadding: 0;\n\theight: 20px;\n\tvertical-align: top;\n\tpointer-events: none;\n}\n\n.cfm-more-btn {\n\tposition: absolute;\n\ttop: 34px;\n\tright: 6px;\n\tmargin: 0;\n\tpadding: 0;\n\tline-height: 0;\n\tborder-radius: 2px;\n\tborder: none;\n\tbackground-color: var(--button-color);\n\tpointer-events: auto;\n\tcursor: pointer;\n}\n.cfm-more-btn:hover { background-color: var(--button-hover-color); }\n.cfm-more-btn:active { background-color: var(--button-active-color); }\n\n.cfm-context-menu {\n\tz-index: 9999;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: none;\n\tpadding: 4px 0;\n\tmin-width: 220px;\n\tbox-shadow: 4px 4px 0 rgba(0,0,0,0.6);\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n}\n.cfm-menu-item {\n\tdisplay: block;\n\twidth: 100%;\n\tpadding: 10px 16px;\n\ttext-align: left;\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 24px;\n\tcursor: pointer;\n}\n.cfm-menu-item:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-menu-hint {\n\tpadding: 10px 16px;\n\tfont-size: 20px;\n\topacity: 0.6;\n\tcolor: var(--text-color, #fff);\n}\n\n.custom-folder-manager-panel {\n\tposition: absolute;\n\ttop: 20px;\n\tright: 20px;\n\tz-index: 100;\n\tbackground-color: var(--surface-color, #1a1a2e);\n\tborder: none;\n\tpadding: 16px;\n\tmin-width: 320px;\n\tbox-shadow: 4px 4px 0 rgba(0,0,0,0.6);\n\tcolor: var(--text-color, #fff);\n\tpointer-events: auto;\n}\n.cfm-header {\n\tdisplay: flex;\n\talign-items: center;\n\tjustify-content: space-between;\n\tmargin-bottom: 12px;\n\tpadding-bottom: 8px;\n\tborder-bottom: 3px solid var(--button-hover-color, #3a5a9a);\n\tfont-size: 30px;\n\tfont-weight: bold;\n\tfont-style: italic;\n\ttext-shadow: 2px 2px 0 #112052;\n}\n.cfm-close {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 28px;\n\tcursor: pointer;\n\tpadding: 0 4px;\n\topacity: 0.7;\n}\n.cfm-close:hover { opacity: 1; }\n.cfm-list { margin-bottom: 12px; }\n.cfm-empty { font-size: 24px; opacity: 0.5; padding: 8px 0; }\n.cfm-row {\n\tdisplay: flex;\n\talign-items: center;\n\tgap: 8px;\n\tpadding: 6px 0;\n\tborder-bottom: 2px solid rgba(255,255,255,0.06);\n}\n.cfm-folder-name { flex: 1; font-size: 26px; }\n.cfm-btn {\n\tbackground: none;\n\tborder: none;\n\tcolor: var(--text-color, #fff);\n\tfont-size: 22px;\n\tcursor: pointer;\n\tpadding: 2px 8px;\n}\n.cfm-btn:hover { background-color: rgba(255,255,255,0.1); }\n.cfm-footer {\n\tdisplay: flex;\n\tgap: 8px;\n\tmargin-top: 8px;\n}\n.cfm-input {\n\tflex: 1;\n\tpadding: 0 10px;\n\tmin-height: 44px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tborder: none;\n\tborder-bottom: 3px solid var(--button-hover-color, #3a5a9a);\n\tbackground-color: var(--surface-secondary-color, rgba(255,255,255,0.05));\n\tcolor: var(--text-color, #fff);\n}\n.cfm-add-btn {\n\tpadding: 0 14px;\n\tmin-height: 44px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tborder: none;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color, #fff);\n\tcursor: pointer;\n}\n.cfm-add-btn:hover { background-color: var(--button-hover-color); }\n.cfm-sort-select {\n\tmargin: 8px 0 8px 12px;\n\tpadding: 0 36px 0 24px;\n\theight: auto;\n\tmin-height: 52px;\n\tfont-size: 24px;\n\tfont-style: italic;\n\tfont-weight: bold;\n\tborder-radius: 0;\n\tborder: none;\n\t-webkit-appearance: none;\n\tappearance: none;\n\tbackground-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");\n\tbackground-repeat: no-repeat;\n\tbackground-position: calc(100% - 16px) center;\n\tclip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);\n\tbackground-color: var(--button-color);\n\tcolor: var(--text-color);\n\tcursor: pointer;\n}\n.cfm-sort-select:hover { background-color: var(--button-hover-color); }
+
+
+.cfm-ms-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: none;
+	cursor: pointer;
+	border: 3px solid transparent;
+	box-sizing: border-box;
+	transition: border-color 0.15s, background-color 0.15s;
+}
+.tracks-container.cfm-selecting .cfm-ms-overlay {
+	display: block;
+}
+.cfm-ms-overlay.cfm-ms-checked {
+	border-color: var(--button-hover-color, #3a5a9a);
+	background-color: rgba(60, 80, 160, 0.25);
+}
+
+
+
+.cfm-multi-bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0px;
+	padding: 8px 20px;
+	background-color: var(--surface-color);
+	border-bottom: 3px solid var(--button-hover-color, #3a5a9a);
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+.cfm-multi-info {
+	font-size: 26px;
+	color: var(--text-color, #fff);
+	text-shadow: 2px 2px 0 #112052;
+	margin-right: 12px;
+	font-weight: bold;
+	font-style: italic;
+}
+.cfm-multi-folder-btn {
+	margin: 6px 4px 6px 0;
+	padding: 0 14px;
+	min-height: 44px;
+	font-size: 22px;
+	font-style: italic;
+	border: none;
+	clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+	background-color: var(--button-color);
+	color: var(--text-color, #fff);
+	cursor: pointer;
+}
+.cfm-multi-folder-btn:hover { background-color: var(--button-hover-color); }
+.cfm-multi-folder-btn:active { background-color: var(--button-active-color); }
+.cfm-multi-remove-btn { opacity: 0.7; }
+.cfm-multi-remove-btn:hover { opacity: 1; }
+.cfm-multi-hint {
+	font-size: 20px;
+	opacity: 0.6;
+	color: var(--text-color, #fff);
+	font-style: italic;
+}
+.cfm-multi-cancel-btn {
+	margin: 6px 0 6px auto;
+	padding: 0 14px;
+	min-height: 44px;
+	font-size: 22px;
+	font-style: italic;
+	border: none;
+	clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+	background-color: rgba(180, 40, 40, 0.5);
+	color: var(--text-color, #fff);
+	cursor: pointer;
+}
+.cfm-multi-cancel-btn:hover { background-color: rgba(200, 60, 60, 0.8); }
+.cfm-multi-cancel-btn:active { background-color: rgba(160, 20, 20, 0.9); }\n\n.track-selection-ui .tracks-container.compact .track button {\n\tmargin: 4px;\n}\n.track-selection-ui .tracks-container.compact .track > .button > canvas,\n.track-selection-ui .tracks-container.compact .track > .button > img:not(.environment) {\n\tpadding: 8px 16px;\n\twidth: 64px;\n\theight: 64px;\n}\n.track-selection-ui .tracks-container.compact .track-title > p {\n\twidth: 96px;\n\tpadding: 0 8px;\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .track-title {\n\tfont-size: 18px;\n}\n.track-selection-ui .tracks-container.compact .record {\n\tdisplay: none;\n}\n.track-selection-ui .tracks-container.compact .track .environment {\n\tbottom: 20px;\n\tright: 6px;\n\twidth: 16px;\n}\n.track-selection-ui .tracks-container.compact .delete-button {\n\ttop: 3px;\n\tright: 3px;\n}\n.track-selection-ui .tracks-container.compact .cfm-more-btn {\n\ttop: 18px;\n\tright: 3px;\n}\n.track-selection-ui .track .ts-compact-btn {\n\tposition: absolute;\n\tbottom: 10px;\n\tright: 10px;\n\tmargin: 0 !important;\n\tpadding: 0;\n\twidth: 44px;\n\theight: 44px;\n\tdisplay: flex !important;\n\talign-items: center;\n\tjustify-content: center;\n\tborder: none;\n\tborder-radius: 2px;\n\tbackground-color: var(--button-color);\n\topacity: 0.6;\n\tpointer-events: auto;\n\tcursor: pointer;\n\tz-index: 2;\n\ttransition: opacity 0.15s ease;\n\tline-height: 0;\n}\n.track-selection-ui .track .ts-compact-btn:hover {\n\topacity: 1;\n\tbackground-color: var(--button-hover-color);\n}\n.track-selection-ui .track .ts-compact-btn:active {\n\tbackground-color: var(--button-active-color);\n}\n.track-selection-ui .track .ts-compact-btn svg {\n\tdisplay: block;\n\tmargin: auto;\n}\n`, ""]);
             const m = u
         }
         ,
@@ -49843,6 +50031,7 @@ _applyVibrantStrength();
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle hitboxes"), KeyBind.ToggleHitboxes),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle checkpoint labels"), KeyBind.ToggleCheckpointLabels);
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Hide input overlay"), KeyBind.ToggleInputOverlay);
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle leaderboard"), KeyBind.ToggleLeaderboard);
             
             C.get(this, ms, "m", Ds).call(this, "UI Color");
             (() => {
@@ -52895,7 +53084,7 @@ _applyVibrantStrength();
             const n = document.createElement("a");
             n.href = "https://www.kodub.com",
             n.target = "_blank",
-            n.textContent = 'misotweaks is back C:',
+            n.textContent = 'misotweaks 6.0.0, polytrack 0.6.0',
             C.get(this, Mc, "f").appendChild(n)
         }
         ,
@@ -54334,8 +54523,15 @@ _applyVibrantStrength();
                         saveTime: n.getTime()
                     }
                       , r = C.get(this, Yh, "f").findIndex((t => t.trackMetadata.name == e.name));
-                    return r >= 0 ? C.get(this, Yh, "f")[r] = i : C.get(this, Yh, "f").unshift(i),
-                    C.get(this, Qh, "m", ad).call(this),
+                    if (r >= 0) {
+                        const _oldId = C.get(this, Yh, "f")[r].id;
+                        const _prevFolder = window._customFolders ? window._customFolders.getFolderForTrack(_oldId) : null;
+                        C.get(this, Yh, "f")[r] = i;
+                        if (_prevFolder && window._customFolders) window._customFolders.assignTrack(i.id, _prevFolder);
+                    } else {
+                        C.get(this, Yh, "f").unshift(i);
+                    }
+                    return C.get(this, Qh, "m", ad).call(this),
                     !0
                 }
                 return !1
@@ -56784,7 +56980,7 @@ _applyVibrantStrength();
                 return new Map([[R.A.ImperialUnitsEnabled, "false"], [R.A.ResetHintEnabled, "true"], [R.A.GhostCarEnabled, "true"], [R.A.DefaultCameraMode, "false"], [R.A.CockpitCameraToggle, "true"], [R.A.Checkpoints, "bottom"], [R.A.Timer, "bottom"], [R.A.Speedometer, "bottom"], [R.A.Language, "en-US"], [R.A.ShadowQuality, "2"], [R.A.CloudsEnabled, "true"], [R.A.ParticlesEnabled, "true"], [R.A.SkidmarksEnabled, "true"], [R.A.FogEnabled, "true"], [R.A.RenderScale, "1"], [R.A.ScreenPixelDensity, "true"], [R.A.Antialiasing, "msaa4"], [R.A.MasterVolume, "1"], [R.A.SoundEffectVolume, "1"], [R.A.MusicVolume, "1"], [R.A.CheckpointVolume, "1"], [R.A.GhostCarSoundsEnabled, "true"], [R.A.VibrationEnabled, "false"], [R.A.TouchSteeringSide, "true"], [R.A.ItalicsEnabled, "true"], [R.A.OrbitCameraFov, "3.5"], [R.A.CockpitCameraFov, "3.5"], [R.A.DecimalSpeedometer, "0"], [R.A.GhostOpacity, "1"], [R.A.CpOnlyNext, "false"], [R.A.CpTracer, "false"], [R.A.MotionBlur, "false"], [R.A.Bloom, "false"], [R.A.VibrantColors, "false"]])
             }
             defaultKeyBindings() {
-                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]]])
+                return new Map([[KeyBind.VehicleAccelerate, ["KeyW", "ArrowUp"]], [KeyBind.VehicleTurnRight, ["KeyD", "ArrowRight"]], [KeyBind.VehicleBrake, ["KeyS", "ArrowDown"]], [KeyBind.VehicleTurnLeft, ["KeyA", "ArrowLeft"]], [KeyBind.VehicleCheckpointReset, ["KeyR", "Enter"]], [KeyBind.VehicleStartReset, ["KeyT", "Backspace"]], [KeyBind.VehicleCockpitCamera, ["KeyC", "KeyM"]], [KeyBind.ToggleUI, ["KeyH", null]], [KeyBind.Pause, ["KeyP", "Space"]], [KeyBind.EditorRotatePart, ["KeyR", "Space"]], [KeyBind.EditorHeightModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.EditorDelete, ["Delete", "KeyX"]], [KeyBind.EditorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.EditorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.EditorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.EditorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.EditorRotateViewUp, ["KeyY", null]], [KeyBind.EditorRotateViewDown, ["KeyH", null]], [KeyBind.EditorRotateViewLeft, ["KeyQ", null]], [KeyBind.EditorRotateViewRight, ["KeyE", null]], [KeyBind.EditorMoveDown, ["KeyZ", null]], [KeyBind.EditorMoveUp, ["KeyC", null]], [KeyBind.EditorTest, ["KeyT", null]], [KeyBind.EditorPick, ["KeyG", null]], [KeyBind.ToggleFpsCounter, ["Equal", null]], [KeyBind.ToggleSpectatorCamera, ["Slash", null]], [KeyBind.ToggleHitboxes, ["KeyO", null]], [KeyBind.ToggleCheckpointLabels, ["KeyN", null]], [KeyBind.SpectatorMoveForwards, ["KeyW", "ArrowUp"]], [KeyBind.SpectatorMoveRight, ["KeyD", "ArrowRight"]], [KeyBind.SpectatorMoveBackwards, ["KeyS", "ArrowDown"]], [KeyBind.SpectatorMoveLeft, ["KeyA", "ArrowLeft"]], [KeyBind.SpectatorSpeedModifier, ["ShiftLeft", "ShiftRight"]], [KeyBind.PreviewStepForward, ["Period", null]], [KeyBind.PreviewStepBack, ["Comma", null]], [KeyBind.EditorClearTrail, ["KeyL", null]], [KeyBind.EditorToggleCoords, ["KeyI", null]], [KeyBind.ToggleGhosts, ["KeyH", null]], [KeyBind.ToggleInputOverlay, ["KeyI", null]], [KeyBind.ToggleLeaderboard, ["KeyL", null]]])
             }
             getSettings() {
                 return Array.from(C.get(this, Cu, "f"))
@@ -58698,7 +58894,7 @@ _applyVibrantStrength();
                         _cpLabelMeshes.push(mesh);
                         _cpLabelTextures.push(tex);
 
-                        if (n.checkpointOrder === (nextIdx >= 0 ? nextIdx : 0)) {
+                        if (n.checkpointOrder === (nextIdx >= 0 ? nextIdx : (_playerState && typeof _playerState.getNextCheckpointIndex === "function" ? _playerState.getNextCheckpointIndex() : 0))) {
                             _cpTracerTargetPos = pos.clone();
                         }
                     }
@@ -58727,15 +58923,13 @@ _applyVibrantStrength();
                     const _cpLabelLoop = () => {
                         if (!_cpLabelsVisible) return;
                         const _ps = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
-                        if (_getCpOnlyNextSetting()) {
-                            try {
-                                const idx = _ps && typeof _ps.getNextCheckpointIndex === "function" ? _ps.getNextCheckpointIndex() : 0;
-                                if (idx !== _cpLabelLastNextIdx) {
-                                    _cpLabelLastNextIdx = idx;
-                                    _buildCpLabels();
-                                }
-                            } catch(_e) {}
-                        }
+                        try {
+                            const idx = _ps && typeof _ps.getNextCheckpointIndex === "function" ? _ps.getNextCheckpointIndex() : 0;
+                            if (idx !== _cpLabelLastNextIdx) {
+                                _cpLabelLastNextIdx = idx;
+                                _buildCpLabels();
+                            }
+                        } catch(_e) {}
                         if (_getCpTracerSetting() && _cpTracerTargetPos && _ps) {
                             try {
                                 const carPos = typeof _ps.getPosition === "function" ? _ps.getPosition() : null;
@@ -58787,6 +58981,25 @@ _applyVibrantStrength();
                 }
             }
             ))
+
+            
+            const _resetOverlaysOnMapExit = () => {
+                try {
+                    if (_cpLabelRafId != null) { cancelAnimationFrame(_cpLabelRafId); _cpLabelRafId = null; }
+                    _cpLabelsVisible = false;
+                    _cpLabelLastNextIdx = -1;
+                    _clearCpLabels();
+                    _hitboxState = 0;
+                    _clearHitboxes(h.scene);
+                } catch(_e) { console.warn("Overlay auto-reset error:", _e); }
+            };
+            for (const _klass of [ts, gh]) {
+                const _origDispose = _klass.prototype.dispose;
+                _klass.prototype.dispose = function(...args) {
+                    _resetOverlaysOnMapExit();
+                    return _origDispose.apply(this, args);
+                };
+            }
         }()
     }
     )()
@@ -59080,9 +59293,10 @@ _applyVibrantStrength();
 })();
 
 (function() {
-    var ENABLED_STORAGE_KEY = '_misoLiveLeaderboardEnabled';
-    var TOGGLE_KEY          = 'KeyL';
-    var CONTEXT_ROWS        = 3;
+    var ENABLED_STORAGE_KEY  = '_misoLiveLeaderboardEnabled';
+    var BINDINGS_KEY         = 'polytrack_v5_prod_key_bindings';
+    var DEFAULT_LB_TOGGLE    = 'KeyL';
+    var CONTEXT_ROWS         = 3;
     var TOP_ROWS            = 3;
     var FETCH_TOP           = 10;
     var FETCH_CONTEXT       = 20;
@@ -59093,6 +59307,29 @@ _applyVibrantStrength();
         var _stored = localStorage.getItem(ENABLED_STORAGE_KEY);
         if (_stored !== null) enabled = _stored === 'true';
     } catch (e) {}
+
+    var _cachedLbKeys = null;
+    window.addEventListener('storage', function(e) {
+        if (e.key === BINDINGS_KEY) _cachedLbKeys = null;
+    });
+
+    function getLbToggleKeys() {
+        if (_cachedLbKeys) return _cachedLbKeys;
+        try {
+            var raw = localStorage.getItem(BINDINGS_KEY);
+            if (raw) {
+                var bindings = JSON.parse(raw);
+                for (var i = 0; i < bindings.length; i++) {
+                    if (bindings[i][0] === 'ToggleLeaderboard') {
+                        _cachedLbKeys = bindings[i][1].filter(function(k) { return k != null; });
+                        return _cachedLbKeys;
+                    }
+                }
+            }
+        } catch (e) {}
+        _cachedLbKeys = [DEFAULT_LB_TOGGLE];
+        return _cachedLbKeys;
+    }
 
     var style = document.createElement('style');
     style.textContent =
@@ -59495,7 +59732,7 @@ _applyVibrantStrength();
     }
 
     window.addEventListener('keydown', function(e) {
-        if (e.code !== TOGGLE_KEY) return;
+        if (getLbToggleKeys().indexOf(e.code) === -1) return;
         var focused = document.activeElement;
         if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)) return;
         enabled = !enabled;

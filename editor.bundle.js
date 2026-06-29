@@ -496,10 +496,51 @@
                     set(this, height_isDownHeld, !1, "f")
                 }
                 ), "f"),
-                window.addEventListener("pointerup", get(this, height_onPointerUp, "f"))
+                window.addEventListener("pointerup", get(this, height_onPointerUp, "f"));
+                const _partCountP = document.createElement("p");
+                _partCountP.textContent = "Parts: 0";
+                _partCountP.style.cssText = "margin:0;padding:0 10px;display:inline-block;vertical-align:bottom;line-height:40px;min-width:100px;font-size:26px;text-align:center;background-color:var(--surface-transparent-color);color:var(--text-color);";
+                get(this, height_element, "f").appendChild(_partCountP);
+                this.partCountEl = _partCountP;
+                this.labelEl = get(this, height_labelElement, "f");
             }
             refresh(t) {
-                get(this, height_labelElement, "f").textContent = get(this, height_localization, "f").get("Height") + ": " + t.toString()
+                const _p = get(this, height_labelElement, "f");
+                if (_p.querySelector("input")) return;
+                _p.textContent = get(this, height_localization, "f").get("Height") + ": " + t.toString()
+            }
+            showHeightInput(currentHeight, onJump) {
+                const _p = get(this, height_labelElement, "f");
+                if (_p.querySelector("input")) return;
+                const _originalText = get(this, height_localization, "f").get("Height") + ": " + currentHeight.toString();
+                _p.textContent = "";
+                const _inp = document.createElement("input");
+                _inp.type = "number";
+                _inp.min = "0";
+                _inp.value = String(currentHeight);
+                _inp.style.cssText = "width:80px;font-size:24px;padding:2px 4px;background:var(--surface-color);color:var(--text-color);border:2px solid var(--editor-outline-color,#fff);outline:none;box-sizing:border-box;";
+                _p.appendChild(_inp);
+                _inp.focus();
+                _inp.select();
+                let _committed = false;
+                const _commit = () => {
+                    if (_committed) return;
+                    _committed = true;
+                    const _v = Math.max(0, parseInt(_inp.value, 10) || 0);
+                    _p.textContent = get(this, height_localization, "f").get("Height") + ": " + _v.toString();
+                    onJump(_v);
+                };
+                const _cancel = () => {
+                    if (_committed) return;
+                    _committed = true;
+                    _p.textContent = _originalText;
+                };
+                _inp.addEventListener("keydown", (ev) => {
+                    ev.stopPropagation();
+                    if (ev.key === "Enter") { ev.preventDefault(); _commit(); }
+                    else if (ev.key === "Escape") { ev.preventDefault(); _cancel(); }
+                });
+                _inp.addEventListener("blur", _commit);
             }
             dispose() {
                 get(this, height_parentElement, "f").removeChild(get(this, height_element, "f")),
@@ -1448,7 +1489,7 @@
             }
             return n
         }
-        var Ft, editor_audioManager, editor_lastEditSoundTime, editor_localization, editor_renderer, editor_transitionManager, editor_track, editor_partRegistry, editor_trackStorage, editor_customTrackManager, editor_networkManager, editor_userProfileManager, editor_dialogManager, editor_inputManager, editor_settingsManager, editor_testCallback, editor_isActive, editor_containerElement, editor_topBar, editor_toastElement, editor_toastTimeout, editor_pasteButton, editor_undoButton, editor_redoButton, editor_partPanelContainer, editor_categoryBar, editor_heightSelectorUI, editor_checkpointOrderUI, editor_exportUI, editor_loadingScreen, editor_helpUI, editor_sideToolbar, editor_trackSettingsUI, editor_activeModal, editor_settingsButton, editor_onMouseMove, editor_onMouseDown, editor_onMouseUp, editor_onMouseOut, editor_onTouchStart, editor_onClick, editor_onKeyDown, editor_onKeyUp, editor_onWheel, editor_onBeforeUnload, editor_cameraRig, editor_orbitControls, editor_isHeightModifierHeld, editor_keyForward, editor_keyRight, editor_keyBackward, editor_keyLeft, editor_keyPitchUp, editor_keyPitchDown, editor_keyYawLeft, editor_keyYawRight, editor_isSaved, editor_raycaster, editor_gridPlane, editor_previewGroup, editor_ghostMaterial, editor_previewMeshes, editor_tileIndicatorMaterial, editor_tileIndicatorGeometry, editor_tileIndicatorMesh, editor_isDeleteKeyHeld, editor_isLeftMouseDown, editor_mouseNDC, editor_lastTouchTimestamp, editor_isTapPending, editor_cursorGridPos, editor_minYOffset, editor_currentRotation, editor_currentAxis, editor_isLargeGrid, editor_isDeleteMode, editor_lastPlacement, editor_lastDeletion, editor_trackName, editor_trackAuthor, editor_lastModified, editor_undoStack, editor_redoStack, editor_checkpointLabels3D, editor_partEntries, editor_selectedPartIndex, editor_selectedColor, editor_isCopyMode, editor_isCutMode, editor_selectionStart, editor_clipboard, editor_activePlacement, editor_selectionBoxMeshes, editor_lastOverlapCheckPos, editor_categoryEntries, editor_selectedCategory, editor_isTyping, updateSelectionBoxVisual, copyOrCutRegion, activatePaste, placeActiveParts, loadTrackMetadata, setTrackName, setTrackAuthor, confirmExit, testTrack, pickPartUnderCursor, undo, redo, showToast, initPartPalette, getEffectiveColor, setEnvironment, refreshAllThumbnails, rebuildPreviewMesh, selectCategory, selectPart, getCurrentHeight, setHeight, recalcMinYOffset, refreshTrackAfterEdit, playEditSound, getCursorGridPosition, findOverlappingParts, hasOverlappingParts, deletePartsAndRecord, updateKeyboardCamera, isKeyboardInputActive, TrackLoadError = n(6223).A, LoadingScreenUI = n(5302).A;
+        var Ft, editor_audioManager, editor_lastEditSoundTime, editor_localization, editor_renderer, editor_transitionManager, editor_track, editor_partRegistry, editor_trackStorage, editor_customTrackManager, editor_networkManager, editor_userProfileManager, editor_dialogManager, editor_inputManager, editor_settingsManager, editor_testCallback, editor_isActive, editor_containerElement, editor_topBar, editor_toastElement, editor_toastTimeout, editor_pasteButton, editor_undoButton, editor_redoButton, editor_partPanelContainer, editor_categoryBar, editor_heightSelectorUI, editor_checkpointOrderUI, editor_exportUI, editor_loadingScreen, editor_helpUI, editor_sideToolbar, editor_trackSettingsUI, editor_activeModal, editor_settingsButton, editor_onMouseMove, editor_onMouseDown, editor_onMouseUp, editor_onMouseOut, editor_onTouchStart, editor_onClick, editor_onKeyDown, editor_onKeyUp, editor_onWheel, editor_onBeforeUnload, editor_cameraRig, editor_orbitControls, editor_isHeightModifierHeld, editor_keyForward, editor_keyRight, editor_keyBackward, editor_keyLeft, editor_keyPitchUp, editor_keyPitchDown, editor_keyYawLeft, editor_keyYawRight, editor_isSaved, editor_raycaster, editor_gridPlane, editor_previewGroup, editor_ghostMaterial, editor_previewMeshes, editor_tileIndicatorMaterial, editor_tileIndicatorGeometry, editor_tileIndicatorMesh, editor_isDeleteKeyHeld, editor_isLeftMouseDown, editor_mouseNDC, editor_lastTouchTimestamp, editor_isTapPending, editor_cursorGridPos, editor_minYOffset, editor_currentRotation, editor_currentAxis, editor_isLargeGrid, editor_isDeleteMode, editor_lastPlacement, editor_lastDeletion, editor_trackName, editor_trackAuthor, editor_lastModified, editor_undoStack, editor_redoStack, editor_checkpointLabels3D, editor_partEntries, editor_selectedPartIndex, editor_selectedColor, editor_isCopyMode, editor_isCutMode, editor_selectionStart, editor_clipboard, editor_activePlacement, editor_selectionBoxMeshes, editor_lastOverlapCheckPos, editor_categoryEntries, editor_selectedCategory, editor_isTyping, editor_isFillMode, updateSelectionBoxVisual, copyOrCutRegion, fillRegion, activatePaste, placeActiveParts, loadTrackMetadata, setTrackName, setTrackAuthor, confirmExit, testTrack, pickPartUnderCursor, undo, redo, showToast, initPartPalette, getEffectiveColor, setEnvironment, refreshAllThumbnails, rebuildPreviewMesh, selectCategory, selectPart, getCurrentHeight, setHeight, recalcMinYOffset, refreshTrackAfterEdit, playEditSound, getCursorGridPosition, findOverlappingParts, hasOverlappingParts, deletePartsAndRecord, updateKeyboardCamera, isKeyboardInputActive, TrackLoadError = n(6223).A, LoadingScreenUI = n(5302).A;
         editor_audioManager = new WeakMap,
         editor_lastEditSoundTime = new WeakMap,
         editor_localization = new WeakMap,
@@ -1545,9 +1586,10 @@
         editor_categoryEntries = new WeakMap,
         editor_selectedCategory = new WeakMap,
         editor_isTyping = new WeakMap,
+        editor_isFillMode = new WeakMap,
         Ft = new WeakSet,
         updateSelectionBoxVisual = function() {
-            if (get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f")) {
+            if (get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f") || get(this, editor_isFillMode, "f")) {
                 const t = get(this, Ft, "m", getCursorGridPosition).call(this);
                 if (null != t) {
                     let e;
@@ -1573,6 +1615,9 @@
                     if (get(this, editor_isCopyMode, "f"))
                         p = 65280,
                         u = window._editorOutlineColors().valid;
+                    else if (get(this, editor_isFillMode, "f"))
+                        p = 0x4488ff,
+                        u = 0x88bbff;
                     else {
                         if (!get(this, editor_isCutMode, "f"))
                             throw new Error("Invalid copy/cut state");
@@ -1679,6 +1724,56 @@
             }, "f"),
             get(this, editor_pasteButton, "f").disabled = !1,
             get(this, Ft, "m", activatePaste).call(this)
+        }
+        ,
+        fillRegion = function(t, e, n, s, o, a) {
+            t > s && ([t,s] = [s,t]);
+            e > o && ([e,o] = [o,e]);
+            n > a && ([n,a] = [a,n]);
+            get(this, editor_isLargeGrid, "f") && (t -= 2, n -= 2, s += 1, a += 1);
+            const _step = get(this, editor_isLargeGrid, "f") ? 4 : 1;
+            const _partIdx = get(this, editor_selectedPartIndex, "f");
+            if (null == _partIdx || _partIdx < 0) return;
+            const _entry = get(this, editor_partEntries, "f")[_partIdx];
+            if (null == _entry || null == _entry.id) return;
+            const _color = get(this, Ft, "m", getEffectiveColor).call(this);
+            const _removed = [], _added = [];
+            const _partTiles = get(this, editor_partRegistry, "f").getPart(_entry.id).configuration.tiles.rotated(get(this, editor_currentRotation, "f"), get(this, editor_currentAxis, "f"));
+            // Build list of all anchor positions first.
+            const _anchors = [];
+            for (let _fx = t; _fx <= s; _fx += _step)
+                for (let _fy = e; _fy <= o; _fy++)
+                    for (let _fz = n; _fz <= a; _fz += _step)
+                        _anchors.push([_fx, _fy, _fz]);
+            // Pass 1: delete everything that would be occupied by any placed part.
+            // Must be done before any placement so that a multi-tile part placed at
+            // anchor A doesn't get wiped by the delete pass for the next anchor B
+            // (whose footprint overlaps A's tiles).
+            for (const [_fx, _fy, _fz] of _anchors) {
+                _partTiles.forEach((_tx, _ty, _tz) => {
+                    const _del = get(this, editor_track, "f").deletePartsAt(_fx + _tx, _fy + _ty, _fz + _tz);
+                    for (const _p of _del) {
+                        if (!_removed.some(_r => _r.id === _p.id && _r.x === _p.x && _r.y === _p.y && _r.z === _p.z))
+                            _removed.push({id:_p.id,x:_p.x,y:_p.y,z:_p.z,rotation:_p.rotation,rotationAxis:_p.rotationAxis,color:_p.color,checkpointOrder:_p.checkpointOrder,startOrder:_p.startOrder});
+                    }
+                });
+            }
+            // Pass 2: place all parts now that the region is clear.
+            for (const [_fx, _fy, _fz] of _anchors) {
+                let _so = null;
+                null != get(this, editor_partRegistry, "f").getPart(_entry.id).configuration.startOffset && (_so = get(this, editor_track, "f").getNextStartOrder());
+                let _co = null;
+                _entry.isCheckpoint && (_co = get(this, editor_checkpointOrderUI, "f").checkpointOrder);
+                get(this, editor_track, "f").setPart(_fx, _fy, _fz, _entry.id, get(this, editor_currentRotation, "f"), get(this, editor_currentAxis, "f"), _color, _co, _so);
+                _added.push({id:_entry.id,x:_fx,y:_fy,z:_fz,rotation:get(this, editor_currentRotation, "f"),rotationAxis:get(this, editor_currentAxis, "f"),color:_color,checkpointOrder:_co,startOrder:_so});
+            }
+            (_removed.length > 0 || _added.length > 0) && (get(this, editor_undoStack, "f").push({removed:_removed,added:_added}),
+            get(this, editor_redoStack, "f").length = 0,
+            get(this, editor_undoButton, "f").disabled = !1,
+            get(this, editor_redoButton, "f").disabled = !0);
+            get(this, Ft, "m", playEditSound).call(this);
+            get(this, Ft, "m", refreshTrackAfterEdit).call(this);
+            get(this, Ft, "m", showToast).call(this, "Filled " + _added.length + " parts", !0);
         }
         ,
         activatePaste = function() {
@@ -2180,6 +2275,7 @@
         selectPart = function(t) {
             null != t && (set(this, editor_isCopyMode, !1, "f"),
             set(this, editor_isCutMode, !1, "f"),
+            set(this, editor_isFillMode, !1, "f"),
             set(this, editor_selectionStart, null, "f"),
             set(this, editor_activePlacement, null, "f"));
             for (let e = 0; e < get(this, editor_partEntries, "f").length; e++) {
@@ -2260,6 +2356,14 @@
             set(this, editor_lastOverlapCheckPos, null, "f"),
             set(this, editor_lastModified, new Date, "f"),
             set(this, editor_isSaved, !1, "f");
+            try {
+                const _hUI = get(this, editor_heightSelectorUI, "f");
+                if (_hUI && _hUI.partCountEl) {
+                    const _b = get(this, editor_track, "f").getBounds();
+                    const _n = get(this, editor_track, "f").getPartsWithin(_b.min.x, -1000, _b.min.y, _b.max.x, 1000, _b.max.y).length;
+                    _hUI.partCountEl.textContent = "Parts: " + _n;
+                }
+            } catch(_e) {}
             if (localStorage.getItem("editorAutoSave") === "1" && null != get(this, editor_trackName, "f")) {
                 clearTimeout(this._autoSaveTimer);
                 const _self = this;
@@ -2507,6 +2611,7 @@
                 editor_categoryEntries.set(this, []),
                 editor_selectedCategory.set(this, null),
                 editor_isTyping.set(this, !1),
+                editor_isFillMode.set(this, !1),
                 set(this, editor_localization, t, "f"),
                 set(this, editor_audioManager, e, "f"),
                 set(this, editor_renderer, n, "f"),
@@ -2578,7 +2683,19 @@
                 n.canvas.addEventListener("click", set(this, editor_onClick, ( () => {
                     if (get(this, editor_inputManager, "f").touchEnabled && null != get(this, editor_lastTouchTimestamp, "f") && Date.now() - get(this, editor_lastTouchTimestamp, "f") < 200 && (set(this, editor_lastTouchTimestamp, null, "f"),
                     set(this, editor_isTapPending, !0, "f")),
-                    get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f")) {
+                    get(this, editor_isFillMode, "f")) {
+                        const t = get(this, Ft, "m", getCursorGridPosition).call(this);
+                        null != t && (null == get(this, editor_selectionStart, "f") ? (set(this, editor_selectionStart, {
+                            x: t.x,
+                            y: t.y,
+                            z: t.z
+                        }, "f"),
+                        set(this, editor_isTapPending, !1, "f"),
+                        get(this, Ft, "m", showToast).call(this, "Fill: click second corner", !0)) : (get(this, Ft, "m", fillRegion).call(this, get(this, editor_selectionStart, "f").x, get(this, editor_selectionStart, "f").y, get(this, editor_selectionStart, "f").z, t.x, t.y, t.z),
+                        set(this, editor_isFillMode, !1, "f"),
+                        set(this, editor_selectionStart, null, "f"),
+                        set(this, editor_isTapPending, !1, "f")))
+                    } else if (get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f")) {
                         const t = get(this, Ft, "m", getCursorGridPosition).call(this);
                         null != t && (null == get(this, editor_selectionStart, "f") ? set(this, editor_selectionStart, {
                             x: t.x,
@@ -2593,8 +2710,9 @@
                 }
                 ), "f")),
                 window.addEventListener("keydown", set(this, editor_onKeyDown, (t => {
-                    get(this, Ft, "m", isKeyboardInputActive).call(this) && ("Escape" == t.code && (get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f") ? (set(this, editor_isCopyMode, !1, "f"),
+                    get(this, Ft, "m", isKeyboardInputActive).call(this) && ("Escape" == t.code && (get(this, editor_isCopyMode, "f") || get(this, editor_isCutMode, "f") || get(this, editor_isFillMode, "f") ? (set(this, editor_isCopyMode, !1, "f"),
                     set(this, editor_isCutMode, !1, "f"),
+                    set(this, editor_isFillMode, !1, "f"),
                     set(this, editor_selectionStart, null, "f")) : null != get(this, editor_activePlacement, "f") ? (set(this, editor_activePlacement, null, "f"),
                     get(this, Ft, "m", rebuildPreviewMesh).call(this)) : get(this, Ft, "m", confirmExit).call(this, p),
                     t.preventDefault()),
@@ -3367,6 +3485,26 @@
                 }
                 )),
                 N.appendChild(get(this, editor_pasteButton, "f"));
+                const _fillBtn = document.createElement("button");
+                _fillBtn.className = "button",
+                _fillBtn.title = "Fill region — select a part, then click two corners",
+                _fillBtn.innerHTML = '<img class="button-icon" src="images/copy.svg" style="filter:hue-rotate(200deg) brightness(1.3)">',
+                _fillBtn.addEventListener("click", ( () => {
+                    get(this, editor_audioManager, "f").playUIClick();
+                    const _partIdx = get(this, editor_selectedPartIndex, "f");
+                    if (null == _partIdx || _partIdx < 0 || null == get(this, editor_partEntries, "f")[_partIdx]?.id) {
+                        get(this, Ft, "m", showToast).call(this, "Select a part first, then click Fill", !1);
+                        return;
+                    }
+                    set(this, editor_isCopyMode, !1, "f"),
+                    set(this, editor_isCutMode, !1, "f"),
+                    set(this, editor_isFillMode, !0, "f"),
+                    set(this, editor_selectionStart, null, "f"),
+                    set(this, editor_activePlacement, null, "f");
+                    get(this, Ft, "m", showToast).call(this, "Fill: click first corner", !0);
+                }
+                )),
+                N.appendChild(_fillBtn);
                 const q = document.createElement("div");
                 q.className = "undo-container",
                 N.appendChild(q),
@@ -3429,6 +3567,17 @@
                 }
                 )), "f"),
                 get(this, editor_heightSelectorUI, "f").refresh(get(this, Ft, "a", getCurrentHeight)),
+                (() => {
+                    const _hUI = get(this, editor_heightSelectorUI, "f");
+                    _hUI.labelEl.style.cssText = "cursor:pointer;user-select:none;";
+                    _hUI.labelEl.title = "Click to jump to height";
+                    _hUI.labelEl.addEventListener("click", () => {
+                        get(this, editor_audioManager, "f").playUIClick();
+                        _hUI.showHeightInput(get(this, Ft, "a", getCurrentHeight), (h) => {
+                            set(this, Ft, Math.max(0, h), "a", setHeight);
+                        });
+                    });
+                })(),
                 
                 (() => {
                     const coordEl = document.createElement("div");
@@ -3532,6 +3681,7 @@
                 get(this, editor_checkpointLabels3D, "f")?.dispose(),
                 set(this, editor_checkpointLabels3D, new N(get(this, editor_renderer, "f")), "f"),
                 get(this, editor_checkpointLabels3D, "f").refresh(get(this, editor_track, "f")),
+                (() => { try { const _hUI = get(this, editor_heightSelectorUI, "f"); if (_hUI && _hUI.partCountEl) { const _b = get(this, editor_track, "f").getBounds(); const _n = get(this, editor_track, "f").getPartsWithin(_b.min.x, -1000, _b.min.y, _b.max.x, 1000, _b.max.y).length; _hUI.partCountEl.textContent = "Parts: " + _n; } } catch(_e) {} })(),
                 get(this, editor_sideToolbar, "f").show(),
                 get(this, editor_containerElement, "f").className = "editor-ui",
                 
@@ -3919,7 +4069,7 @@
                                     z: t.z
                                 }, "f")
                             }
-                        } else if (get(this, editor_isLeftMouseDown, "f") || get(this, editor_isTapPending, "f")) {
+                        } else if ((get(this, editor_isLeftMouseDown, "f") || get(this, editor_isTapPending, "f")) && !get(this, editor_isFillMode, "f")) {
                             if (null == e.id)
                                 null != get(this, editor_lastDeletion, "f") && get(this, editor_lastDeletion, "f").x == t.x && get(this, editor_lastDeletion, "f").y == t.y && get(this, editor_lastDeletion, "f").z == t.z || (get(this, Ft, "m", deletePartsAndRecord).call(this, n.flatMap(( ({parts: t}) => t)), s),
                                 set(this, editor_lastDeletion, {
