@@ -410,6 +410,15 @@ window.polytrackModConfiguration = {
     let watchClipFunction = () => {};
     let replayLoaderClass;
     let watchingClip;
+    function _fetchRecordingsChunked(client, ids) {
+        if (!ids.length) return Promise.resolve([]);
+        return Promise.all(ids.map(id => client.getRecordings([ id ]))).then(results => {
+            const merged = [];
+            for (const r of results) merged.push(...r);
+            return merged;
+        });
+    }
+    window.__misoFetchRecordingsChunked = _fetchRecordingsChunked;
     const CLIPS_STORAGE_KEY = "miso_clips";
     const CLIP_KEYBIND_STORAGE_KEY = "_clipKeyBind";
     const DEFAULT_CLIP_KEYBIND = "KeyC";
@@ -677,7 +686,7 @@ window.polytrackModConfiguration = {
             setTimeout(() => el.remove(), 300);
         }, 1800);
     }
-    function _playClipNow(clip) {
+    function _playClipsNow(clips) {
         const RecordingClass = window.__clipRecordingClass;
         const TimeClass = window.__clipTimeClass;
         if (!RecordingClass || !TimeClass) {
@@ -685,51 +694,66 @@ window.polytrackModConfiguration = {
             return;
         }
         const pako = window.__clipPako?.Ay ?? window.__clipPako;
-        const recBytes = _clipRecordingBytes(clip);
-        const d = new pako.Deflate({
-            level: 9
-        });
-        d.push(recBytes, true);
-        const b64 = _bytesToBase64(d.result).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-        const recording = RecordingClass.deserialize(b64);
-        if (!recording) {
-            alert("Failed to deserialize clip recording.");
-            return;
+        const opponents = [];
+        for (const clip of clips) {
+            const recBytes = _clipRecordingBytes(clip);
+            const d = new pako.Deflate({
+                level: 9
+            });
+            d.push(recBytes, true);
+            const b64 = _bytesToBase64(d.result).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+            const recording = RecordingClass.deserialize(b64);
+            if (!recording) {
+                alert('Failed to deserialize recording for clip "' + (clip.name || clip.id) + '".');
+                return;
+            }
+            let carStyle;
+            try {
+                carStyle = window.__clipCarStyleClass ? window.__clipCarStyleClass.deserializeSafe(clip.carStyle) : null;
+            } catch (e) {
+                carStyle = null;
+            }
+            const loaded = replayLoaderClass?.loadClip(recording, clip.frames);
+            if (!loaded) {
+                alert('Failed to load clip "' + (clip.name || clip.id) + '".');
+                return;
+            }
+            opponents.push({
+                recording: loaded.recording,
+                carStyle: carStyle,
+                nickname: clip.playerName || clip.name,
+                time: loaded.time,
+                isSelf: false
+            });
         }
-        let carStyle;
-        try {
-            carStyle = window.__clipCarStyleClass ? window.__clipCarStyleClass.deserializeSafe(clip.carStyle) : null;
-        } catch (e) {
-            carStyle = null;
-        }
-        const loaded = replayLoaderClass?.loadClip(recording, clip.frames);
-        if (!loaded) {
-            alert("Failed to load clip.");
-            return;
-        }
+        if (!opponents.length) return;
         watchingClip = true;
-        watchClipFunction([ {
-            recording: loaded.recording,
-            carStyle: carStyle,
-            nickname: clip.playerName || clip.name,
-            time: loaded.time,
-            isSelf: false
-        } ]);
+        watchClipFunction(opponents);
+    }
+    function _playClipNow(clip) {
+        _playClipsNow([ clip ]);
     }
     function watchClip(clip) {
+        watchClips([ clip ]);
+    }
+    function watchClips(clips) {
+        if (!clips || !clips.length) return;
+        const trackId = clips[0].trackId;
+        if (!clips.every(c => (c.trackId || null) === (trackId || null))) {
+            alert("Please select clips from the same map to watch them together.");
+            return;
+        }
         const currentTrack = window.__getCurrentTrack?.();
         const currentTrackId = currentTrack?.getId?.() ?? null;
-        if (!clip.trackId || currentTrackId === clip.trackId) {
-            _playClipNow(clip);
-            return;
+        if (trackId && currentTrackId !== trackId) {
+            const opened = window.__miso_selectTrackById?.(trackId);
+            if (!opened) {
+                const trackLabel = getTrackNameById(trackId) || trackId;
+                alert("These clip(s) are for a different track (" + trackLabel + ") that isn't in your track list right now. Open that track yourself, then try watching the clip(s) again.");
+                return;
+            }
         }
-        const opened = window.__miso_selectTrackById?.(clip.trackId);
-        if (!opened) {
-            const trackLabel = getTrackNameById(clip.trackId) || clip.trackId;
-            alert("This clip is for a different track (" + trackLabel + ") that isn't in your track list right now. Open that track yourself, then try watching the clip again.");
-            return;
-        }
-        _playClipNow(clip);
+        _playClipsNow(clips);
     }
     function framesToTime(frames) {
         var ms = Math.round(frames * 1e3 / 60);
@@ -742,7 +766,7 @@ window.polytrackModConfiguration = {
         if (document.getElementById("_miso-clip-css")) return;
         var style = document.createElement("style");
         style.id = "_miso-clip-css";
-        style.textContent = [ ".clip-menu-bg{display:flex;flex-direction:column;position:absolute;left:calc(50% - 750px / 2);top:150px;z-index:2;margin:0;padding:0;width:750px;height:calc(100% - 150px * 2);box-sizing:border-box;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-bg>h2{margin:0;padding:10px 20px;font-weight:normal;font-size:38px;text-align:center;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-container{margin:0;padding:10px;flex-grow:1;min-height:0;box-sizing:border-box;background-color:var(--surface-secondary-color);overflow-x:hidden;overflow-y:scroll;pointer-events:auto;}", "button.clip-menu-entry{position:relative;margin:0 0 10px 0;padding:10px 20px;display:block;width:100%;box-sizing:border-box;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);text-align:left;white-space:nowrap;}", "button.clip-menu-entry:last-of-type{margin-bottom:0;}", "button.clip-menu-entry.selected{background-color:var(--button-hover-color);}", "button.clip-menu-entry>h2{margin:0;padding:0 0 6px 0;font-weight:normal;font-size:24px;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>p{margin:0;font-size:18px;opacity:0.7;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>.checkmark{display:none;position:absolute;right:0;top:0;margin:6px;width:14px;}", "button.clip-menu-entry.selected>.checkmark{display:block;animation:clip-menu-checkmark-spawn 0.15s ease-out;}", "@keyframes clip-menu-checkmark-spawn{0%{transform:scale(0);}90%{transform:scale(1.2);}100%{transform:scale(1);}}", ".clip-menu-wrapper{display:flex;align-items:center;flex-wrap:wrap;padding:10px;}", ".clip-menu-wrapper>.button{margin:0 0 0 10px;}", ".clip-menu-wrapper>.button.back{margin-left:0;margin-right:auto;}", ".clip-box-bg{position:fixed;inset:0;background-color:rgba(20,20,30,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;}", ".clip-box{background-color:var(--surface-color);color:var(--text-color);width:500px;max-width:90vw;box-sizing:border-box;display:flex;flex-direction:column;}", ".clip-box>textarea{margin:10px;box-sizing:border-box;width:calc(100% - 20px);height:120px;background-color:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-family:inherit;font-size:16px;padding:10px;resize:none;}", ".clip-box>.clip-box-buttons{display:flex;justify-content:space-between;padding:0 10px 10px 10px;}", ".clip-saved-notification{position:fixed;left:50%;bottom:150px;margin:0;padding:0;text-align:center;font-size:32px;color:#fff;text-shadow:2px 2px 0 #112052,0 0 2px #000;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(10px);transition:opacity 0.25s ease-in-out, transform 0.25s ease-in-out;z-index:9999;}", ".clip-saved-notification.show{opacity:1;transform:translateX(-50%) translateY(0);}" ].join("");
+        style.textContent = [ ".clip-menu-bg{display:flex;flex-direction:column;position:absolute;left:calc(50% - 750px / 2);top:150px;z-index:2;margin:0;padding:0;width:750px;height:calc(100% - 150px * 2);box-sizing:border-box;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-bg>h2{margin:0;padding:10px 20px;font-weight:normal;font-size:38px;text-align:center;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-container{margin:0;padding:10px;flex-grow:1;min-height:0;box-sizing:border-box;background-color:var(--surface-secondary-color);overflow-x:hidden;overflow-y:scroll;pointer-events:auto;}", "button.clip-menu-entry{position:relative;margin:0 0 10px 0;padding:10px 20px;display:block;width:100%;box-sizing:border-box;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);text-align:left;white-space:nowrap;}", "button.clip-menu-entry:last-of-type{margin-bottom:0;}", "button.clip-menu-entry.selected{background-color:var(--button-hover-color);}", "button.clip-menu-entry>h2{margin:0;padding:0 0 6px 0;font-weight:normal;font-size:24px;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>p{margin:0;font-size:18px;opacity:0.7;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>.checkmark{display:none;position:absolute;right:0;top:0;margin:6px;width:14px;}", "button.clip-menu-entry.selected>.checkmark{display:block;animation:clip-menu-checkmark-spawn 0.15s ease-out;}", "@keyframes clip-menu-checkmark-spawn{0%{transform:scale(0);}90%{transform:scale(1.2);}100%{transform:scale(1);}}", "button.clip-menu-entry.track-mismatch{opacity:0.35;cursor:not-allowed;}", ".clip-menu-wrapper{display:flex;align-items:center;flex-wrap:wrap;padding:10px;}", ".clip-menu-wrapper>.button{margin:0 0 0 10px;}", ".clip-menu-wrapper>.button.back{margin-left:0;margin-right:auto;}", ".clip-box-bg{position:fixed;inset:0;background-color:rgba(20,20,30,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;}", ".clip-box{background-color:var(--surface-color);color:var(--text-color);width:500px;max-width:90vw;box-sizing:border-box;display:flex;flex-direction:column;}", ".clip-box>textarea{margin:10px;box-sizing:border-box;width:calc(100% - 20px);height:120px;background-color:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-family:inherit;font-size:16px;padding:10px;resize:none;}", ".clip-box>.clip-box-buttons{display:flex;justify-content:space-between;padding:0 10px 10px 10px;}", ".clip-saved-notification{position:fixed;left:50%;bottom:150px;margin:0;padding:0;text-align:center;font-size:32px;color:#fff;text-shadow:2px 2px 0 #112052,0 0 2px #000;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(10px);transition:opacity 0.25s ease-in-out, transform 0.25s ease-in-out;z-index:9999;}", ".clip-saved-notification.show{opacity:1;transform:translateX(-50%) translateY(0);}" ].join("");
         document.head.appendChild(style);
     }
     function createBoxDisplay(defaultText, inputCallback) {
@@ -808,12 +832,16 @@ window.polytrackModConfiguration = {
         exportButton.innerHTML = '<img class="button-icon" src="images/share.svg"> ';
         exportButton.append("Export");
         exportButton.addEventListener("click", function() {
-            var selected = container.querySelector(".clip-menu-entry.selected");
-            if (!selected) {
+            var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
+            if (!selectedEls.length) {
                 alert("Please select a clip first!");
                 return;
             }
-            var idx = Array.from(container.children).indexOf(selected);
+            if (selectedEls.length > 1) {
+                alert("Please select only one clip to export.");
+                return;
+            }
+            var idx = Array.from(container.children).indexOf(selectedEls[0]);
             var clip = clipData[idx];
             createBoxDisplay(toClipExport(clip));
         });
@@ -844,20 +872,27 @@ window.polytrackModConfiguration = {
         watchButton.innerHTML = '<img class="button-icon" src="images/play.svg"> ';
         watchButton.append("Watch");
         watchButton.addEventListener("click", function() {
-            var selected = container.querySelector(".clip-menu-entry.selected");
-            if (!selected) return;
-            var idx = Array.from(container.children).indexOf(selected);
-            var clip = clipData[idx];
+            var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
+            if (!selectedEls.length) return;
+            var clips = selectedEls.map(function(el) {
+                var idx = Array.from(container.children).indexOf(el);
+                return clipData[idx];
+            });
             background.remove();
-            watchClip(clip);
+            watchClips(clips);
         });
         var deleteButton = document.createElement("button");
         deleteButton.className = "button";
         deleteButton.innerHTML = '<img class="button-icon" src="images/cancel.svg"> ';
         deleteButton.append("Delete");
         deleteButton.addEventListener("click", function() {
-            var selected = container.querySelector(".clip-menu-entry.selected");
-            if (!selected) return;
+            var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
+            if (!selectedEls.length) return;
+            if (selectedEls.length > 1) {
+                alert("Please select only one clip to delete.");
+                return;
+            }
+            var selected = selectedEls[0];
             var idx = Array.from(container.children).indexOf(selected);
             var clip = clipData[idx];
             if (!localDeleteClip(clip.id)) {
@@ -872,10 +907,15 @@ window.polytrackModConfiguration = {
         renameButton.innerHTML = '<img class="button-icon" src="images/reset.svg"> ';
         renameButton.append("Rename");
         renameButton.addEventListener("click", function() {
+            var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
+            if (!selectedEls.length) return;
+            if (selectedEls.length > 1) {
+                alert("Please select only one clip to rename.");
+                return;
+            }
             createBoxDisplay("", function(newName) {
                 if (!newName) return;
-                var selected = container.querySelector(".clip-menu-entry.selected");
-                if (!selected) return;
+                var selected = selectedEls[0];
                 var idx = Array.from(container.children).indexOf(selected);
                 var clip = clipData[idx];
                 if (!localRenameClip(clip.id, newName)) {
@@ -886,6 +926,31 @@ window.polytrackModConfiguration = {
                 selected.querySelector("h2").textContent = newName;
             });
         });
+        function refreshEntryAvailability() {
+            var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
+            var selectedTrackId = selectedEls.length ? clipData[Array.from(container.children).indexOf(selectedEls[0])].trackId || null : null;
+            Array.from(container.children).forEach(function(el, idx) {
+                if (el.classList.contains("selected")) {
+                    el.classList.remove("track-mismatch");
+                    return;
+                }
+                var trackId = clipData[idx].trackId || null;
+                if (selectedEls.length && trackId !== selectedTrackId) {
+                    el.classList.add("track-mismatch");
+                } else {
+                    el.classList.remove("track-mismatch");
+                }
+            });
+            if (selectedEls.length > 1) {
+                watchButton.textContent = "";
+                watchButton.innerHTML = '<img class="button-icon" src="images/play.svg"> ';
+                watchButton.append("Watch " + selectedEls.length + " together");
+            } else {
+                watchButton.textContent = "";
+                watchButton.innerHTML = '<img class="button-icon" src="images/play.svg"> ';
+                watchButton.append("Watch");
+            }
+        }
         function createEntry(clip) {
             var btn = document.createElement("button");
             btn.className = "clip-menu-entry button";
@@ -898,11 +963,12 @@ window.polytrackModConfiguration = {
             checkmark.className = "checkmark";
             checkmark.src = "images/checkmark.svg";
             btn.addEventListener("click", function() {
-                var wasSelected = btn.classList.contains("selected");
-                Array.from(container.children).forEach(function(c) {
-                    c.classList.remove("selected");
-                });
-                if (!wasSelected) btn.classList.add("selected");
+                if (btn.classList.contains("track-mismatch")) {
+                    alert("You can only watch multiple clips together if they're on the same map.");
+                    return;
+                }
+                btn.classList.toggle("selected");
+                refreshEntryAvailability();
             });
             btn.appendChild(h2);
             btn.appendChild(p);
@@ -912,6 +978,7 @@ window.polytrackModConfiguration = {
         clipData.forEach(function(clip) {
             createEntry(clip);
         });
+        refreshEntryAvailability();
         var wrapper = document.createElement("div");
         wrapper.className = "clip-menu-wrapper";
         wrapper.appendChild(backButton);
@@ -925,6 +992,244 @@ window.polytrackModConfiguration = {
         background.appendChild(wrapper);
         ui.appendChild(background);
     }
+    const GRINDING_STORAGE_KEY = "miso_grinding_stats";
+    let _grindTrackId = null;
+    let _grindSessionTimeMs = 0;
+    let _grindSessionResets = 0;
+    let _grindSessionFinishes = 0;
+    let _grindSessionBestTimeMs = null;
+    let _grindResetsSinceFinish = 0;
+    let _grindPaused = true;
+    let _grindLastTick = Date.now();
+    let _grindPanelEl = null;
+    let _grindPauseMenuOpen = false;
+    function _getGrindingCounterSetting() {
+        try {
+            const raw = localStorage.getItem("polytrack_v5_prod_settings");
+            if (raw) {
+                const arr = JSON.parse(raw);
+                for (const pair of arr) {
+                    if (pair[0] === "GrindingCounterEnabled") return pair[1] === "true";
+                }
+            }
+        } catch (e) {}
+        return true;
+    }
+    function _loadGrindingStats() {
+        try {
+            return JSON.parse(localStorage.getItem(GRINDING_STORAGE_KEY) || "{}");
+        } catch (e) {
+            return {};
+        }
+    }
+    function _saveGrindingStats(all) {
+        try {
+            localStorage.setItem(GRINDING_STORAGE_KEY, JSON.stringify(all));
+        } catch (e) {}
+    }
+    function _defaultTrackGrindStats() {
+        return {
+            totalTimeMs: 0,
+            totalResets: 0,
+            totalFinishes: 0,
+            bestTimeMs: null
+        };
+    }
+    function _getTrackGrindStats(trackId) {
+        const all = _loadGrindingStats();
+        return Object.assign(_defaultTrackGrindStats(), all[trackId] || {});
+    }
+    function _updateTrackGrindStats(trackId, patch) {
+        const all = _loadGrindingStats();
+        const cur = Object.assign(_defaultTrackGrindStats(), all[trackId] || {});
+        all[trackId] = Object.assign({}, cur, patch);
+        _saveGrindingStats(all);
+        return all[trackId];
+    }
+    function _formatGrindTime(ms) {
+        const totalSec = Math.floor(Math.max(0, ms) / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor(totalSec % 3600 / 60);
+        const s = totalSec % 60;
+        if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+    function _formatRaceTime(ms) {
+        if (ms == null) return "--:--.---";
+        const n = Math.abs(Math.round(ms));
+        const m = Math.floor(n / 6e4);
+        const s = Math.floor((n - 6e4 * m) / 1e3);
+        const rem = n - 6e4 * m - 1e3 * s;
+        return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") + "." + String(rem).padStart(3, "0");
+    }
+    function _formatPercent(numerator, denominator) {
+        if (!denominator) return "--%";
+        return Math.round(numerator / denominator * 100) + "%";
+    }
+    function _formatAverage(numerator, denominator) {
+        if (!denominator) return "--";
+        return (numerator / denominator).toFixed(1);
+    }
+    function _injectGrindCSS() {
+        if (document.getElementById("_miso-grind-css")) return;
+        var style = document.createElement("style");
+        style.id = "_miso-grind-css";
+        style.textContent = [ ".grinding-time-ui{position:absolute;right:calc(var(--safe-area-horizontal) + 16px);bottom:16px;z-index:1;min-width:260px;box-sizing:border-box;opacity:0;transform:translateX(10px);transition:opacity 0.35s ease-in-out, transform 0.35s ease-in-out;pointer-events:none;}", ".grinding-time-ui.visible{opacity:1;transform:translateX(0);pointer-events:auto;}", ".grinding-time-ui>h2{margin:0;padding:8px 15px;font-weight:normal;font-size:20px;text-align:center;background-color:var(--surface-color);color:var(--text-color);clip-path:polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);}", ".grinding-time-ui>.rows{padding:8px 12px;background-color:var(--surface-tertiary-color);color:var(--text-color);}", ".grinding-time-ui>.rows>.row{display:flex;justify-content:space-between;gap:14px;padding:3px 0;font-size:16px;}", ".grinding-time-ui>.rows>.row.divider{border-top:1px solid rgba(255,255,255,0.15);margin-top:4px;padding-top:7px;}", ".grinding-time-ui>.rows>.row>.label{opacity:0.6;}", ".grinding-time-ui>.rows>.row>.value{font-variant-numeric:tabular-nums;white-space:nowrap;}", ".grinding-time-ui>.rows>.row>.value>.current{color:var(--text-color);}", ".grinding-time-ui>.rows>.row>.value>.sep{opacity:0.4;margin:0 4px;}", ".grinding-time-ui>.rows>.row>.value>.total{opacity:0.6;}", ".grinding-time-ui>.rows>.row>.value>.pb{color:#ffd35c;}" ].join("");
+        document.head.appendChild(style);
+    }
+    function _ensureGrindPanel() {
+        if (_grindPanelEl) return _grindPanelEl;
+        _injectGrindCSS();
+        var ui = document.getElementById("ui");
+        if (!ui) return null;
+        var el = document.createElement("div");
+        el.className = "grinding-time-ui";
+        var h2 = document.createElement("h2");
+        h2.textContent = "Grinding";
+        el.appendChild(h2);
+        var rows = document.createElement("div");
+        rows.className = "rows";
+        function makeRow(label, divider, totalClass) {
+            var row = document.createElement("div");
+            row.className = divider ? "row divider" : "row";
+            var lbl = document.createElement("span");
+            lbl.className = "label";
+            lbl.textContent = label;
+            var val = document.createElement("span");
+            val.className = "value";
+            var cur = document.createElement("span");
+            cur.className = "current";
+            var sep = document.createElement("span");
+            sep.className = "sep";
+            sep.textContent = "/";
+            var tot = document.createElement("span");
+            tot.className = totalClass || "total";
+            val.appendChild(cur);
+            val.appendChild(sep);
+            val.appendChild(tot);
+            row.appendChild(lbl);
+            row.appendChild(val);
+            rows.appendChild(row);
+            return {
+                current: cur,
+                total: tot
+            };
+        }
+        var timeRow = makeRow("Time");
+        var resetsRow = makeRow("Resets");
+        var finishesRow = makeRow("Finishes");
+        var attemptsRow = makeRow("Attempts", true);
+        var finishRateRow = makeRow("Finish rate");
+        var sinceFinishRow = makeRow("Since finish");
+        var bestTimeRow = makeRow("Best time", true, "total pb");
+        el.appendChild(rows);
+        ui.appendChild(el);
+        _grindPanelEl = el;
+        _grindPanelEl._rows = {
+            time: timeRow,
+            resets: resetsRow,
+            finishes: finishesRow,
+            attempts: attemptsRow,
+            finishRate: finishRateRow,
+            sinceFinish: sinceFinishRow,
+            bestTime: bestTimeRow
+        };
+        return el;
+    }
+    function _updateGrindPanelText() {
+        if (!_grindPanelEl || !_grindTrackId) return;
+        const totals = _getTrackGrindStats(_grindTrackId);
+        const sessionAttempts = _grindSessionResets + _grindSessionFinishes;
+        const totalAttempts = totals.totalResets + totals.totalFinishes;
+        const rows = _grindPanelEl._rows;
+        rows.time.current.textContent = _formatGrindTime(_grindSessionTimeMs);
+        rows.time.total.textContent = _formatGrindTime(totals.totalTimeMs);
+        rows.resets.current.textContent = String(_grindSessionResets);
+        rows.resets.total.textContent = String(totals.totalResets);
+        rows.finishes.current.textContent = String(_grindSessionFinishes);
+        rows.finishes.total.textContent = String(totals.totalFinishes);
+        rows.attempts.current.textContent = String(sessionAttempts);
+        rows.attempts.total.textContent = String(totalAttempts);
+        rows.finishRate.current.textContent = _formatPercent(_grindSessionFinishes, sessionAttempts);
+        rows.finishRate.total.textContent = _formatPercent(totals.totalFinishes, totalAttempts);
+        rows.sinceFinish.current.textContent = String(_grindResetsSinceFinish);
+        rows.sinceFinish.total.textContent = "avg " + _formatAverage(totals.totalResets, totals.totalFinishes);
+        rows.bestTime.current.textContent = _formatRaceTime(_grindSessionBestTimeMs);
+        rows.bestTime.total.textContent = _formatRaceTime(totals.bestTimeMs);
+    }
+    function _grindSetTrack(trackId) {
+        if (trackId === _grindTrackId) return;
+        _grindTrackId = trackId;
+        _grindSessionTimeMs = 0;
+        _grindSessionResets = 0;
+        _grindSessionFinishes = 0;
+        _grindSessionBestTimeMs = null;
+        _grindResetsSinceFinish = 0;
+    }
+    function _grindTick() {
+        const now = Date.now();
+        let delta = now - _grindLastTick;
+        _grindLastTick = now;
+        if (!(delta > 0) || delta > 5000) delta = 0;
+        const track = window.__getCurrentTrack?.();
+        const trackId = track?.getId?.() ?? null;
+        _grindSetTrack(trackId);
+        if (trackId && !_grindPaused && !document.hidden && delta > 0) {
+            _grindSessionTimeMs += delta;
+            const cur = _getTrackGrindStats(trackId);
+            _updateTrackGrindStats(trackId, {
+                totalTimeMs: cur.totalTimeMs + delta
+            });
+        }
+        _updateGrindPanelText();
+    }
+    setInterval(_grindTick, 1000);
+    window.__misoOnReset = function() {
+        if (!_grindTrackId) return;
+        _grindSessionResets++;
+        _grindResetsSinceFinish++;
+        const cur = _getTrackGrindStats(_grindTrackId);
+        _updateTrackGrindStats(_grindTrackId, {
+            totalResets: cur.totalResets + 1
+        });
+        _updateGrindPanelText();
+    };
+    window.__misoOnFinish = function(finishTimeMs) {
+        if (!_grindTrackId) return;
+        _grindSessionFinishes++;
+        _grindResetsSinceFinish = 0;
+        const cur = _getTrackGrindStats(_grindTrackId);
+        const patch = {
+            totalFinishes: cur.totalFinishes + 1
+        };
+        if (typeof finishTimeMs === "number" && isFinite(finishTimeMs)) {
+            if (_grindSessionBestTimeMs == null || finishTimeMs < _grindSessionBestTimeMs) {
+                _grindSessionBestTimeMs = finishTimeMs;
+            }
+            if (cur.bestTimeMs == null || finishTimeMs < cur.bestTimeMs) {
+                patch.bestTimeMs = finishTimeMs;
+            }
+        }
+        _updateTrackGrindStats(_grindTrackId, patch);
+        _updateGrindPanelText();
+    };
+    window.__misoOnToolbarVisibility = function(visible) {
+        _grindPaused = !!visible;
+    };
+    window.__misoOnPauseMenu = function(open) {
+        _grindPauseMenuOpen = !!open;
+        const panel = _ensureGrindPanel();
+        if (!panel) return;
+        if (_grindPauseMenuOpen && _grindTrackId && _getGrindingCounterSetting()) {
+            _updateGrindPanelText();
+            panel.classList.add("visible");
+        } else {
+            panel.classList.remove("visible");
+        }
+    };
+    window.__misoOnGrindingSettingChanged = function() {
+        window.__misoOnPauseMenu && window.__misoOnPauseMenu(_grindPauseMenuOpen);
+    };
     window.addEventListener("keydown", function(e) {
         var focused = document.activeElement;
         if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable)) return;
@@ -5438,7 +5743,8 @@ window.polytrackModConfiguration = {
                 e[e.ItalicsEnabled = 24] = "ItalicsEnabled", e[e.OrbitCameraFov = 25] = "OrbitCameraFov", 
                 e[e.CockpitCameraFov = 26] = "CockpitCameraFov", e[e.DecimalSpeedometer = 27] = "DecimalSpeedometer", 
                 e[e.GhostOpacity = 28] = "GhostOpacity", e[e.CpOnlyNext = 29] = "CpOnlyNext", e[e.CpTracer = 30] = "CpTracer", 
-                e[e.MotionBlur = 31] = "MotionBlur", e[e.Bloom = 32] = "Bloom", e[e.VibrantColors = 33] = "VibrantColors";
+                e[e.MotionBlur = 31] = "MotionBlur", e[e.Bloom = 32] = "Bloom", e[e.VibrantColors = 33] = "VibrantColors", 
+                e[e.GrindingCounterEnabled = 34] = "GrindingCounterEnabled";
             }(i || (i = {}));
             const r = i;
         },
@@ -29048,6 +29354,7 @@ window.polytrackModConfiguration = {
                 null != C.get(this, Xn, "f") && (C.get(this, Xn, "f").disabled = !e);
             }
             setVisible(e) {
+                window.__misoOnToolbarVisibility && window.__misoOnToolbarVisibility(e);
                 C.get(this, Zn, "f") != e && (e ? C.get(this, Kn, "f").classList.add("visible") : C.get(this, Kn, "f").classList.remove("visible"), 
                 C.set(this, Zn, e, "f"));
             }
@@ -29533,8 +29840,8 @@ window.polytrackModConfiguration = {
             C.get(this, Ba, "f").isEnabled || C.get(this, wa, "f").hasFinished() || C.get(this, Gr, "f").getSettingBoolean(R.A.CockpitCameraToggle) || (C.get(this, Gr, "f").getSettingBoolean(R.A.DefaultCameraMode) ? C.get(this, zr, "f").setCamera(C.get(this, wa, "f").cameraCockpit) : C.get(this, zr, "f").setCamera(C.get(this, wa, "f").cameraOrbit));
         }, Qa = function() {
             P.Xx() || C.get(this, Pa, "f") || (C.get(this, wa, "f").hasFinished() && C.get(this, Sa, "f")?.gameMode != Yt.Competitive ? P.RN("game-finish-reset").finally(() => {
-                C.get(this, Pa, "f") || (C.get(this, _r, "m", Ja).call(this), C.get(this, _r, "m", Ya).call(this));
-            }) : (C.get(this, _r, "m", Ja).call(this), C.get(this, _r, "m", Ya).call(this)));
+                C.get(this, Pa, "f") || (window.__misoOnReset && window.__misoOnReset(), C.get(this, _r, "m", Ja).call(this), C.get(this, _r, "m", Ya).call(this));
+            }) : (window.__misoOnReset && window.__misoOnReset(), C.get(this, _r, "m", Ja).call(this), C.get(this, _r, "m", Ya).call(this)));
         }, Ja = function() {
             const e = C.get(this, zr, "f").camera == C.get(this, wa, "f").cameraCockpit;
             if (this.__editorTrail && this.__editorTrail.points.length > 0) {
@@ -29584,6 +29891,7 @@ window.polytrackModConfiguration = {
             const s = new VisualCar(C.get(this, Cr, "f"), i, null, C.get(this, ya, "f"), C.get(this, zr, "f"), C.get(this, Nr, "f"), C.get(this, Ir, "f"), C.get(this, Pr, "f"), C.get(this, Yr, "f"), C.get(this, Gr, "f"), a);
             recordingClass = s;
             return s.notificationAudioEnabled = !0, s.addResetCallback(() => {
+                window.__misoOnReset && window.__misoOnReset();
                 C.get(this, ya, "f").reset = !1, C.set(this, va, s.getControls().up || s.getControls().down, "f"), 
                 C.get(this, va, "f") && C.set(this, ba, new Date, "f");
             }), s.addCheckpointCallback(e => {
@@ -29595,7 +29903,9 @@ window.polytrackModConfiguration = {
                     C.get(this, aa, "f").showCheckpointSpeed(s.getSpeedKmh(), n);
                 }
             }), s.addFinishCallback(e => {
-                const t = e.getTime(), i = e.getRecording(), r = e.getCarStyle();
+                const t = e.getTime();
+                window.__misoOnFinish && window.__misoOnFinish(t.numberOfFrames);
+                const i = e.getRecording(), r = e.getCarStyle();
                 let a;
                 const s = C.get(this, Ua, "f");
                 if (null == C.get(this, Ua, "f") || t.lessThan(C.get(this, Ua, "f").time)) {
@@ -30173,6 +30483,7 @@ window.polytrackModConfiguration = {
                 C.get(this, Ga, "f")?.dispose(), C.get(this, Fa, "f")?.dispose();
             }
             update(e) {
+                window.__misoOnPauseMenu && window.__misoOnPauseMenu(null != C.get(this, ca, "f"));
                 const t = !P.ip() && null == C.get(this, ca, "f") && !C.get(this, Pa, "f");
                 let n;
                 if (n = C.get(this, Ba, "f").isEnabled && null == C.get(this, Sa, "f") || !t ? 0 : e, 
@@ -36315,7 +36626,15 @@ window.polytrackModConfiguration = {
             }, {
                 title: "3",
                 value: "3"
-            } ], R.A.DecimalSpeedometer), C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Mobile")), 
+            } ], R.A.DecimalSpeedometer), C.get(this, ms, "m", Gs).call(this, "Grinding counter", [ {
+                title: "Off",
+                value: "false"
+            }, {
+                title: "On",
+                value: "true"
+            } ], R.A.GrindingCounterEnabled, () => {
+                window.__misoOnGrindingSettingChanged && window.__misoOnGrindingSettingChanged();
+            }), C.get(this, ms, "m", Bs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Mobile")), 
             C.get(this, ms, "m", Gs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Vibration"), [ {
                 title: gs.getFromLanguage(C.get(this, Cs, "f"), "Off"),
                 value: "false"
@@ -37521,7 +37840,7 @@ window.polytrackModConfiguration = {
                 C.get(this, jo, "f").addEventListener("click", () => {
                     a.playUIClick();
                     const e = C.get(this, Jo, "f");
-                    if (e.length > 0) m(C.get(this, No, "f").getRecordings(e.map(e => e.recordingId)).then(t => {
+                    if (e.length > 0) m(window.__misoFetchRecordingsChunked(C.get(this, No, "f"), e.map(e => e.recordingId)).then(t => {
                         if (t.some(e => null == e)) throw new Error("Failed to load at least one recording.");
                         return t.filter(e => null != e).map((t, n) => ({
                             recording: t.recording,
@@ -37549,7 +37868,7 @@ window.polytrackModConfiguration = {
                 L.addEventListener("click", () => {
                     a.playUIClick();
                     const e = C.get(this, Jo, "f");
-                    if (e.length > 0) f(C.get(this, No, "f").getRecordings(e.map(e => e.recordingId)).then(t => {
+                    if (e.length > 0) f(window.__misoFetchRecordingsChunked(C.get(this, No, "f"), e.map(e => e.recordingId)).then(t => {
                         if (t.some(e => null == e)) throw new Error("Failed to load at least one recording.");
                         return t.filter(e => null != e).map((t, n) => ({
                             recording: t.recording,
@@ -41712,7 +42031,7 @@ window.polytrackModConfiguration = {
                 null != n && C.get(this, Mu, "m", Pu).call(this, n);
             }
             defaultSettings() {
-                return new Map([ [ R.A.ImperialUnitsEnabled, "false" ], [ R.A.ResetHintEnabled, "true" ], [ R.A.GhostCarEnabled, "true" ], [ R.A.DefaultCameraMode, "false" ], [ R.A.CockpitCameraToggle, "true" ], [ R.A.Checkpoints, "bottom" ], [ R.A.Timer, "bottom" ], [ R.A.Speedometer, "bottom" ], [ R.A.Language, "en-US" ], [ R.A.ShadowQuality, "2" ], [ R.A.CloudsEnabled, "true" ], [ R.A.ParticlesEnabled, "true" ], [ R.A.SkidmarksEnabled, "true" ], [ R.A.FogEnabled, "true" ], [ R.A.RenderScale, "1" ], [ R.A.ScreenPixelDensity, "true" ], [ R.A.Antialiasing, "msaa4" ], [ R.A.MasterVolume, "1" ], [ R.A.SoundEffectVolume, "1" ], [ R.A.MusicVolume, "1" ], [ R.A.CheckpointVolume, "1" ], [ R.A.GhostCarSoundsEnabled, "true" ], [ R.A.VibrationEnabled, "false" ], [ R.A.TouchSteeringSide, "true" ], [ R.A.ItalicsEnabled, "true" ], [ R.A.OrbitCameraFov, "3.5" ], [ R.A.CockpitCameraFov, "3.5" ], [ R.A.DecimalSpeedometer, "0" ], [ R.A.GhostOpacity, "1" ], [ R.A.CpOnlyNext, "false" ], [ R.A.CpTracer, "false" ], [ R.A.MotionBlur, "false" ], [ R.A.Bloom, "false" ], [ R.A.VibrantColors, "false" ] ]);
+                return new Map([ [ R.A.ImperialUnitsEnabled, "false" ], [ R.A.ResetHintEnabled, "true" ], [ R.A.GhostCarEnabled, "true" ], [ R.A.DefaultCameraMode, "false" ], [ R.A.CockpitCameraToggle, "true" ], [ R.A.Checkpoints, "bottom" ], [ R.A.Timer, "bottom" ], [ R.A.Speedometer, "bottom" ], [ R.A.Language, "en-US" ], [ R.A.ShadowQuality, "2" ], [ R.A.CloudsEnabled, "true" ], [ R.A.ParticlesEnabled, "true" ], [ R.A.SkidmarksEnabled, "true" ], [ R.A.FogEnabled, "true" ], [ R.A.RenderScale, "1" ], [ R.A.ScreenPixelDensity, "true" ], [ R.A.Antialiasing, "msaa4" ], [ R.A.MasterVolume, "1" ], [ R.A.SoundEffectVolume, "1" ], [ R.A.MusicVolume, "1" ], [ R.A.CheckpointVolume, "1" ], [ R.A.GhostCarSoundsEnabled, "true" ], [ R.A.VibrationEnabled, "false" ], [ R.A.TouchSteeringSide, "true" ], [ R.A.ItalicsEnabled, "true" ], [ R.A.OrbitCameraFov, "3.5" ], [ R.A.CockpitCameraFov, "3.5" ], [ R.A.DecimalSpeedometer, "0" ], [ R.A.GhostOpacity, "1" ], [ R.A.CpOnlyNext, "false" ], [ R.A.CpTracer, "false" ], [ R.A.MotionBlur, "false" ], [ R.A.Bloom, "false" ], [ R.A.VibrantColors, "false" ], [ R.A.GrindingCounterEnabled, "true" ] ]);
             }
             defaultKeyBindings() {
                 return new Map([ [ KeyBind.VehicleAccelerate, [ "KeyW", "ArrowUp" ] ], [ KeyBind.VehicleTurnRight, [ "KeyD", "ArrowRight" ] ], [ KeyBind.VehicleBrake, [ "KeyS", "ArrowDown" ] ], [ KeyBind.VehicleTurnLeft, [ "KeyA", "ArrowLeft" ] ], [ KeyBind.VehicleCheckpointReset, [ "KeyR", "Enter" ] ], [ KeyBind.VehicleStartReset, [ "KeyT", "Backspace" ] ], [ KeyBind.VehicleCockpitCamera, [ "KeyC", "KeyM" ] ], [ KeyBind.ToggleUI, [ "KeyH", null ] ], [ KeyBind.Pause, [ "KeyP", "Space" ] ], [ KeyBind.EditorRotatePart, [ "KeyR", "Space" ] ], [ KeyBind.EditorHeightModifier, [ "ShiftLeft", "ShiftRight" ] ], [ KeyBind.EditorDelete, [ "Delete", "KeyX" ] ], [ KeyBind.EditorMoveForwards, [ "KeyW", "ArrowUp" ] ], [ KeyBind.EditorMoveRight, [ "KeyD", "ArrowRight" ] ], [ KeyBind.EditorMoveBackwards, [ "KeyS", "ArrowDown" ] ], [ KeyBind.EditorMoveLeft, [ "KeyA", "ArrowLeft" ] ], [ KeyBind.EditorRotateViewUp, [ "KeyY", null ] ], [ KeyBind.EditorRotateViewDown, [ "KeyH", null ] ], [ KeyBind.EditorRotateViewLeft, [ "KeyQ", null ] ], [ KeyBind.EditorRotateViewRight, [ "KeyE", null ] ], [ KeyBind.EditorMoveDown, [ "KeyZ", null ] ], [ KeyBind.EditorMoveUp, [ "KeyC", null ] ], [ KeyBind.EditorTest, [ "KeyT", null ] ], [ KeyBind.EditorPick, [ "KeyG", null ] ], [ KeyBind.ToggleFpsCounter, [ "Equal", null ] ], [ KeyBind.ToggleSpectatorCamera, [ "Slash", null ] ], [ KeyBind.ToggleHitboxes, [ "KeyO", null ] ], [ KeyBind.ToggleCheckpointLabels, [ "KeyN", null ] ], [ KeyBind.SpectatorMoveForwards, [ "KeyW", "ArrowUp" ] ], [ KeyBind.SpectatorMoveRight, [ "KeyD", "ArrowRight" ] ], [ KeyBind.SpectatorMoveBackwards, [ "KeyS", "ArrowDown" ] ], [ KeyBind.SpectatorMoveLeft, [ "KeyA", "ArrowLeft" ] ], [ KeyBind.SpectatorSpeedModifier, [ "ShiftLeft", "ShiftRight" ] ], [ KeyBind.PreviewStepForward, [ "Period", null ] ], [ KeyBind.PreviewStepBack, [ "Comma", null ] ], [ KeyBind.EditorClearTrail, [ "KeyL", null ] ], [ KeyBind.EditorToggleCoords, [ "KeyI", null ] ], [ KeyBind.ToggleGhosts, [ "KeyH", null ] ], [ KeyBind.ToggleInputOverlay, [ "KeyI", null ] ], [ KeyBind.ToggleLeaderboard, [ "KeyL", null ] ] ]);
@@ -43985,7 +44304,7 @@ window.polytrackModConfiguration = {
         if (document.getElementById("_miso-medal-css")) return;
         var style = document.createElement("style");
         style.id = "_miso-medal-css";
-        style.textContent = [ ".miso-medal-subline{margin:2px 0 0 0;padding:0;font-size:22px;text-align:center;color:#fff;text-shadow:2px 2px 0 #000,0 0 3px #000;opacity:0;transition:opacity 0.4s ease-in-out 0.3s;}", ".miso-medal-subline.show{opacity:0.9;}", ".miso-medal-badgeline{margin:2px 0 0 0;padding:0;font-size:15px;text-align:center;font-style:italic;color:#fff;text-shadow:1px 1px 0 #000;opacity:0;transition:opacity 0.4s ease-in-out 0.45s;}", ".miso-medal-badgeline.show{opacity:0.7;}", ".miso-medal-popup{position:fixed;left:0;top:44%;width:100%;margin:0;padding:10px 0;box-sizing:border-box;text-align:center;pointer-events:none;opacity:0;z-index:9999;font-family:ForcedSquare,Arial,sans-serif;}", ".miso-medal-popup.show{animation:0.25s ease-out 0s 1 normal forwards running miso-medal-record-animation;}", ".miso-medal-popup>.tier{margin:0;font-size:56px;font-weight:bold;text-shadow:3px 3px 0 #000,0 0 3px #000;}", ".miso-medal-popup>.sub{margin:2px 0 0 0;font-size:22px;color:#fff;text-shadow:2px 2px 0 #000,0 0 3px #000;opacity:0.9;}", ".miso-medal-popup>.badge{margin:2px 0 0 0;font-size:15px;color:#fff;text-shadow:1px 1px 0 #000;opacity:0.7;font-style:italic;}", "@keyframes miso-medal-record-animation{" + "0%{opacity:0;transform:scaleX(0.5);background-color:var(--miso-medal-bright);}" + "80%{opacity:1;transform:scaleX(1.1);}" + "100%{opacity:1;transform:scaleX(1);background-color:var(--miso-medal-soft);}" + "}", ".miso-medal-badge{margin:0 0 16px 0;padding:10px 12px;box-sizing:border-box;display:flex;align-items:center;background-color:var(--surface-secondary-color);color:var(--text-color);}", ".miso-medal-badge>.icon{flex-shrink:0;margin-right:10px;font-size:30px;line-height:1;}", ".miso-medal-badge>.text{flex-grow:1;min-width:0;}", ".miso-medal-badge>.text>.title{font-size:20px;font-weight:bold;color:var(--text-color);}", ".miso-medal-badge>.text>.detail{font-size:15px;opacity:0.7;color:var(--text-color);}", ".miso-medal-badge.no-medal{opacity:0.5;}", ".miso-medal-badge.no-medal>.text>.title{font-weight:normal;font-style:italic;}" ].join("");
+        style.textContent = [ ".miso-medal-subline{margin:2px 0 0 0;padding:0;font-size:22px;text-align:center;color:#fff;text-shadow:2px 2px 0 #000,0 0 3px #000;opacity:0;transition:opacity 0.4s ease-in-out 0.3s;}", ".miso-medal-subline.show{opacity:0.9;}", ".miso-medal-badgeline{margin:2px 0 0 0;padding:0;font-size:15px;text-align:center;font-style:italic;color:#fff;text-shadow:1px 1px 0 #000;opacity:0;transition:opacity 0.4s ease-in-out 0.45s;}", ".miso-medal-badgeline.show{opacity:0.7;}", ".miso-medal-popup{position:fixed;left:0;top:44%;width:100%;margin:0;padding:10px 0;box-sizing:border-box;text-align:center;pointer-events:none;opacity:0;z-index:9999;font-family:ForcedSquare,Arial,sans-serif;}", ".miso-medal-popup.show{animation:0.25s ease-out 0s 1 normal forwards running miso-medal-record-animation;}", ".miso-medal-popup>.tier{margin:0;font-size:56px;font-weight:bold;text-shadow:3px 3px 0 #000,0 0 3px #000;}", ".miso-medal-popup>.sub{margin:2px 0 0 0;font-size:22px;color:#fff;text-shadow:2px 2px 0 #000,0 0 3px #000;opacity:0.9;}", ".miso-medal-popup>.badge{margin:2px 0 0 0;font-size:15px;color:#fff;text-shadow:1px 1px 0 #000;opacity:0.7;font-style:italic;}", "@keyframes miso-medal-record-animation{" + "0%{opacity:0;transform:scaleX(0.5);background-color:var(--miso-medal-bright);}" + "80%{opacity:1;transform:scaleX(1.1);}" + "100%{opacity:1;transform:scaleX(1);background-color:var(--miso-medal-soft);}" + "}", ".miso-medal-badge{margin:0 0 16px 0;padding:10px 12px;box-sizing:border-box;display:flex;align-items:center;background-color:var(--surface-secondary-color);color:var(--text-color);}", ".miso-medal-badge>.icon{flex-shrink:0;margin-right:10px;font-size:30px;line-height:1;}", ".miso-medal-badge>.text{flex-grow:1;min-width:0;}", ".miso-medal-badge>.text>.title{font-size:20px;font-weight:bold;color:var(--text-color);}", ".miso-medal-badge>.text>.detail{font-size:15px;opacity:0.7;color:var(--text-color);}", ".miso-medal-badge.no-medal{opacity:0.5;}", ".miso-medal-badge.no-medal>.text>.title{font-weight:normal;font-style:italic;}", ".miso-medal-thresholds{margin:0 0 16px 0;padding:8px 12px;box-sizing:border-box;background-color:var(--surface-secondary-color);color:var(--text-color);pointer-events:auto;}", ".miso-medal-thresholds>summary{cursor:pointer;font-size:15px;font-weight:bold;opacity:0.8;list-style:none;}", ".miso-medal-thresholds>summary::-webkit-details-marker{display:none;}", '.miso-medal-thresholds>summary::before{content:"▸ ";display:inline-block;transition:transform 0.15s ease-in-out;}', ".miso-medal-thresholds[open]>summary::before{transform:rotate(90deg);}", ".miso-medal-thresholds-row{display:flex;align-items:center;margin-top:8px;font-size:14px;}", ".miso-medal-thresholds-row>.icon{flex-shrink:0;margin-right:8px;font-size:18px;line-height:1;width:20px;text-align:center;}", ".miso-medal-thresholds-row>.label{flex-shrink:0;width:80px;font-weight:bold;}", ".miso-medal-thresholds-row>.detail{opacity:0.7;}" ].join("");
         document.head.appendChild(style);
     }
     function medalEmoji(tierId) {
@@ -43994,6 +44313,10 @@ window.polytrackModConfiguration = {
         if (tierId === "gold") return "🥇";
         if (tierId === "silver") return "🥈";
         return "🥉";
+    }
+    function formatTierPercent(fraction) {
+        var rounded = Math.round(fraction * 1e4) / 100;
+        return (rounded % 1 === 0 ? rounded.toFixed(0) : String(rounded)) + "%";
     }
     function medalText(placement, tier, isNewBest) {
         var pctText = placement.percentile < .01 ? "< 1%" : Math.round(placement.percentile * 1e3) / 10 + "%";
@@ -44117,6 +44440,34 @@ window.polytrackModConfiguration = {
         el.appendChild(text);
         return el;
     }
+    function buildMedalThresholdsEl(total) {
+        var el = document.createElement("details");
+        el.className = "miso-medal-thresholds";
+        var summary = document.createElement("summary");
+        summary.textContent = "Placements needed for each medal";
+        el.appendChild(summary);
+        for (var i = 0; i < TIERS.length; i++) {
+            var tier = TIERS[i];
+            var neededRank = Math.max(1, Math.ceil(total * tier.max));
+            var row = document.createElement("div");
+            row.className = "miso-medal-thresholds-row";
+            var icon = document.createElement("span");
+            icon.className = "icon";
+            icon.textContent = medalEmoji(tier.id);
+            row.appendChild(icon);
+            var label = document.createElement("span");
+            label.className = "label";
+            label.textContent = tier.label;
+            label.style.color = tier.color;
+            row.appendChild(label);
+            var detail = document.createElement("span");
+            detail.className = "detail";
+            detail.textContent = "Top " + formatTierPercent(tier.max) + " • Rank ≤ #" + neededRank.toLocaleString();
+            row.appendChild(detail);
+            el.appendChild(row);
+        }
+        return el;
+    }
     function refreshMedalRecord(trackId) {
         return fetchPlacement(trackId).then(function(placement) {
             if (!placement) return false;
@@ -44156,28 +44507,33 @@ window.polytrackModConfiguration = {
             if (!slot.isConnected) return;
             var old = slot.querySelector(".miso-medal-badge");
             if (old) old.remove();
-            slot.appendChild(buildMedalBadgeEl(trackId));
+            slot.insertBefore(buildMedalBadgeEl(trackId), slot.firstChild);
+        };
+        var showThresholds = function(total) {
+            if (!slot.isConnected || total == null) return;
+            var old = slot.querySelector(".miso-medal-thresholds");
+            if (old) old.remove();
+            slot.appendChild(buildMedalThresholdsEl(total));
         };
         var refreshThenRedraw = function() {
             refreshMedalRecord(trackId).then(function(changed) {
                 if (changed) showBadge();
             });
         };
+        var totalPromise = fetchLeaderboardTotal(trackId).catch(function() {
+            return null;
+        });
         if (!minPlayersRuleEnabled) {
             showBadge();
             refreshThenRedraw();
-            return;
         }
-        fetchLeaderboardTotal(trackId).then(function(total) {
-            if (total != null && total < MIN_PLAYERS_FOR_MEDAL) return;
+        totalPromise.then(function(total) {
             if (!slot.isConnected) return;
+            var meetsMinPlayers = !minPlayersRuleEnabled || total == null || total >= MIN_PLAYERS_FOR_MEDAL;
+            if (!meetsMinPlayers) return;
             showBadge();
             refreshThenRedraw();
-        }).catch(function() {
-            if (slot.isConnected) {
-                showBadge();
-                refreshThenRedraw();
-            }
+            showThresholds(total);
         });
     }
     window.__misoRenderMedalBadge = renderMedalBadge;
