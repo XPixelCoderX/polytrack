@@ -28,8 +28,13 @@ window.polytrackModConfiguration = {
         if (_mbsStored !== null) _misoMBStrength = parseFloat(_mbsStored);
     } catch (e) {}
     var _motionBlur = function() {
-        var MAX_BUF = 8;
-        var MIN_FRAMES = 3;
+        var _mbLowEnd = (navigator.hardwareConcurrency || 4) <= 4;
+        var MAX_BUF = _mbLowEnd ? 5 : 8;
+        var MIN_FRAMES = 2;
+        var _mbRenderScale = 1;
+        var _dynMaxFrames = MAX_BUF;
+        var _emaFrameMs = 0;
+        var _FRAME_BUDGET_MS = 6;
         var frameBuf = [];
         var frameBufCtx = [];
         var bufAlloced = 0;
@@ -43,12 +48,23 @@ window.polytrackModConfiguration = {
         var lastW = 0, lastH = 0;
         var _cachedTargetFrames = 0;
         var _lastMBStrength = -1;
+        var _lastDynMax = -1;
         function _getTargetFrames() {
-            if (_misoMBStrength !== _lastMBStrength) {
+            if (_misoMBStrength !== _lastMBStrength || _dynMaxFrames !== _lastDynMax) {
                 _lastMBStrength = _misoMBStrength;
-                _cachedTargetFrames = Math.max(2, Math.min(Math.round(MIN_FRAMES + _misoMBStrength * (MAX_BUF - MIN_FRAMES)), MAX_BUF));
+                _lastDynMax = _dynMaxFrames;
+                var cap = Math.max(MIN_FRAMES, _dynMaxFrames);
+                _cachedTargetFrames = Math.max(2, Math.min(Math.round(MIN_FRAMES + _misoMBStrength * (cap - MIN_FRAMES)), cap));
             }
             return _cachedTargetFrames;
+        }
+        function _recordFrameCost(ms) {
+            _emaFrameMs = _emaFrameMs === 0 ? ms : _emaFrameMs * .85 + ms * .15;
+            if (_emaFrameMs > _FRAME_BUDGET_MS && _dynMaxFrames > MIN_FRAMES) {
+                _dynMaxFrames--;
+            } else if (_emaFrameMs < _FRAME_BUDGET_MS * .5 && _dynMaxFrames < MAX_BUF) {
+                _dynMaxFrames++;
+            }
         }
         var _hasOffscreen = function() {
             try {
@@ -77,7 +93,10 @@ window.polytrackModConfiguration = {
             }
             for (var j = bufAlloced; j < needed; j++) {
                 frameBuf[j] = makeCanvas(w, h);
-                frameBufCtx[j] = frameBuf[j].getContext("2d");
+                frameBufCtx[j] = frameBuf[j].getContext("2d", {
+                    alpha: true,
+                    willReadFrequently: false
+                });
             }
             if (needed > bufAlloced) bufAlloced = needed;
         }
@@ -99,19 +118,22 @@ window.polytrackModConfiguration = {
         var _boundLoop;
         function loop(srcCanvas) {
             if (!active) return;
-            var w = srcCanvas.width, h = srcCanvas.height;
-            if (w === 0 || h === 0) {
+            var t0 = performance.now();
+            var srcW = srcCanvas.width, srcH = srcCanvas.height;
+            if (srcW === 0 || srcH === 0) {
                 rafId = requestAnimationFrame(_boundLoop);
                 return;
             }
             if (_misoMBStrength < .02) {
-                if (outCanvas && (outCanvas.width !== w || outCanvas.height !== h)) {
-                    outCanvas.width = w;
-                    outCanvas.height = h;
+                if (outCanvas && (outCanvas.width !== srcW || outCanvas.height !== srcH)) {
+                    outCanvas.width = srcW;
+                    outCanvas.height = srcH;
                 }
                 rafId = requestAnimationFrame(_boundLoop);
                 return;
             }
+            var w = Math.max(1, Math.round(srcW * _mbRenderScale));
+            var h = Math.max(1, Math.round(srcH * _mbRenderScale));
             var numFrames = _getTargetFrames();
             ensureBuffer(w, h, numFrames);
             numFrames = Math.min(numFrames, bufFilled + 1);
@@ -129,6 +151,7 @@ window.polytrackModConfiguration = {
             if (ghostCount < 1) {
                 outCtx.clearRect(0, 0, w, h);
                 rafId = requestAnimationFrame(_boundLoop);
+                _recordFrameCost(performance.now() - t0);
                 return;
             }
             var weights = getWeights(ghostCount);
@@ -144,6 +167,7 @@ window.polytrackModConfiguration = {
             outCtx.globalAlpha = 1;
             outCtx.globalCompositeOperation = "source-over";
             rafId = requestAnimationFrame(_boundLoop);
+            _recordFrameCost(performance.now() - t0);
         }
         return {
             apply: function(enabled) {
@@ -174,7 +198,10 @@ window.polytrackModConfiguration = {
                     outCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;";
                     var uiEl = document.getElementById("ui");
                     if (uiEl) uiEl.parentNode.insertBefore(outCanvas, uiEl); else srcCanvas.parentNode.insertBefore(outCanvas, srcCanvas.nextSibling);
-                    outCtx = outCanvas.getContext("2d");
+                    outCtx = outCanvas.getContext("2d", {
+                        alpha: true,
+                        willReadFrequently: false
+                    });
                 }
                 outCanvas.style.display = "";
                 _boundLoop = function() {
@@ -205,17 +232,78 @@ window.polytrackModConfiguration = {
         var _vsStored = localStorage.getItem("_vibrantStrength");
         if (_vsStored !== null) _misoVibrantStrength = parseFloat(_vsStored);
     } catch (e) {}
+    var _bloomLowEnd = (navigator.hardwareConcurrency || 4) <= 4;
     var _bloomLevels = [];
     var _bloomThresh = null, _bloomThreshCtx = null;
     var _bloomLastW = 0, _bloomLastH = 0;
-    var _BLOOM_NUM_LEVELS = 5;
+    var _BLOOM_NUM_LEVELS = _bloomLowEnd ? 4 : 5;
     var _BLOOM_THRESHOLD = .55;
     var _BLOOM_KNEE = .12;
+    var _BLOOM_UPSAMPLE_WEIGHT = .45;
+    var _BLOOM_BASE_SHIFT = _bloomLowEnd ? 2 : 1;
+    var _bloomFilterSvg = null;
+    var _bloomFilterSupported = null;
+    function _bloomEnsureFilterSvg() {
+        if (_bloomFilterSvg) return;
+        var svgNS = "http://www.w3.org/2000/svg";
+        var svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("width", "0");
+        svg.setAttribute("height", "0");
+        svg.style.cssText = "position:absolute;pointer-events:none;";
+        var filter = document.createElementNS(svgNS, "filter");
+        filter.setAttribute("id", "_miso-bloom-threshold-filter");
+        filter.setAttribute("color-interpolation-filters", "sRGB");
+        var lumaMatrix = document.createElementNS(svgNS, "feColorMatrix");
+        lumaMatrix.setAttribute("type", "matrix");
+        lumaMatrix.setAttribute("values", "0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0");
+        var tLow = _BLOOM_THRESHOLD - _BLOOM_KNEE;
+        var tHigh = _BLOOM_THRESHOLD + _BLOOM_KNEE;
+        var _KNEE_SAMPLES = 32;
+        var _kneeTable = [];
+        for (var _si = 0; _si <= _KNEE_SAMPLES; _si++) {
+            var _x = _si / _KNEE_SAMPLES;
+            var _v;
+            if (_x <= tLow) _v = 0; else if (_x >= tHigh) _v = 1; else {
+                var _tt = (_x - tLow) / (tHigh - tLow);
+                _v = _tt * _tt * (3 - 2 * _tt);
+            }
+            _kneeTable.push(_v.toFixed(4));
+        }
+        var _kneeTableStr = _kneeTable.join(" ");
+        var transfer = document.createElementNS(svgNS, "feComponentTransfer");
+        [ "feFuncR", "feFuncG", "feFuncB" ].forEach(function(tag) {
+            var f = document.createElementNS(svgNS, tag);
+            f.setAttribute("type", "table");
+            f.setAttribute("tableValues", _kneeTableStr);
+            transfer.appendChild(f);
+        });
+        filter.appendChild(lumaMatrix);
+        filter.appendChild(transfer);
+        svg.appendChild(filter);
+        document.body.appendChild(svg);
+        _bloomFilterSvg = svg;
+    }
+    function _bloomSupportsCanvasFilter() {
+        if (_bloomFilterSupported !== null) return _bloomFilterSupported;
+        try {
+            _bloomEnsureFilterSvg();
+            var c = document.createElement("canvas");
+            c.width = c.height = 4;
+            var cx = c.getContext("2d");
+            cx.filter = "url(#_miso-bloom-threshold-filter)";
+            _bloomFilterSupported = cx.filter.indexOf("url") !== -1;
+        } catch (e) {
+            _bloomFilterSupported = false;
+        }
+        return _bloomFilterSupported;
+    }
     function _bloomMakeCanvas() {
         var c = document.createElement("canvas");
         return {
             c: c,
-            x: c.getContext("2d")
+            x: c.getContext("2d", {
+                willReadFrequently: !_bloomSupportsCanvasFilter()
+            })
         };
     }
     function _bloomSyncScratch(w, h) {
@@ -225,8 +313,8 @@ window.polytrackModConfiguration = {
             _bloomThresh = t.c;
             _bloomThreshCtx = t.x;
         }
-        _bloomThresh.width = Math.max(1, w >> 1);
-        _bloomThresh.height = Math.max(1, h >> 1);
+        _bloomThresh.width = Math.max(1, w >> _BLOOM_BASE_SHIFT);
+        _bloomThresh.height = Math.max(1, h >> _BLOOM_BASE_SHIFT);
         while (_bloomLevels.length < _BLOOM_NUM_LEVELS) {
             var la = _bloomMakeCanvas(), lb = _bloomMakeCanvas();
             _bloomLevels.push({
@@ -239,7 +327,7 @@ window.polytrackModConfiguration = {
             });
         }
         for (var i = 0; i < _BLOOM_NUM_LEVELS; i++) {
-            var lw = Math.max(1, w >> i + 2), lh = Math.max(1, h >> i + 2);
+            var lw = Math.max(1, w >> i + 1 + _BLOOM_BASE_SHIFT), lh = Math.max(1, h >> i + 1 + _BLOOM_BASE_SHIFT);
             _bloomLevels[i].a.width = lw;
             _bloomLevels[i].a.height = lh;
             _bloomLevels[i].b.width = lw;
@@ -252,6 +340,12 @@ window.polytrackModConfiguration = {
     }
     function _bloomExtractThreshold(src, dstCtx, dw, dh, threshold, knee) {
         dstCtx.clearRect(0, 0, dw, dh);
+        if (_bloomSupportsCanvasFilter()) {
+            dstCtx.filter = "url(#_miso-bloom-threshold-filter)";
+            dstCtx.drawImage(src, 0, 0, dw, dh);
+            dstCtx.filter = "none";
+            return;
+        }
         dstCtx.drawImage(src, 0, 0, dw, dh);
         var id = dstCtx.getImageData(0, 0, dw, dh);
         var d = id.data, len = d.length;
@@ -275,6 +369,16 @@ window.polytrackModConfiguration = {
         dstCtx.putImageData(id, 0, 0);
     }
     function _bloomKawasePass(src, aCtx, bCtx, bw, bh, iteration) {
+        if (_bloomSupportsCanvasFilter()) {
+            var px = (iteration + .5) * 1.6;
+            bCtx.clearRect(0, 0, bw, bh);
+            bCtx.filter = "blur(" + px.toFixed(2) + "px)";
+            bCtx.drawImage(src, 0, 0, bw, bh);
+            bCtx.filter = "none";
+            aCtx.clearRect(0, 0, bw, bh);
+            aCtx.drawImage(bCtx.canvas, 0, 0, bw, bh);
+            return;
+        }
         var offset = iteration + .5;
         bCtx.clearRect(0, 0, bw, bh);
         bCtx.globalAlpha = .2;
@@ -321,10 +425,13 @@ window.polytrackModConfiguration = {
             _misoBloomCanvas.id = "_miso-bloom-canvas";
             _misoBloomCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;";
             srcCanvas.parentNode.insertBefore(_misoBloomCanvas, srcCanvas.nextSibling);
-            _misoBloomCtx = _misoBloomCanvas.getContext("2d");
+            _misoBloomCtx = _misoBloomCanvas.getContext("2d", {
+                willReadFrequently: false
+            });
         }
         _misoBloomCanvas.style.display = "";
-        var levelAlphas = [ .55, .7, .82, .9, 1 ];
+        var _emaBloomMs = 0;
+        var _skipParity = false;
         function _bloomLoop() {
             if (!_misoBloomActive) return;
             _misoBloomRafId = requestAnimationFrame(_bloomLoop);
@@ -334,6 +441,11 @@ window.polytrackModConfiguration = {
                 _misoBloomCanvas.width = w;
                 _misoBloomCanvas.height = h;
             }
+            if (_emaBloomMs > 8) {
+                _skipParity = !_skipParity;
+                if (_skipParity) return;
+            }
+            var t0 = performance.now();
             var s = _misoBloomStrength;
             _bloomSyncScratch(w, h);
             var tw = _bloomThresh.width, th2 = _bloomThresh.height;
@@ -350,15 +462,22 @@ window.polytrackModConfiguration = {
                 var lvj = _bloomLevels[j];
                 _bloomKawasePass(lvj.a, lvj.ac, lvj.bc, lvj.w, lvj.h, j + 1);
             }
-            var baseAlpha = .12 + s * .18;
+            for (var u = _BLOOM_NUM_LEVELS - 2; u >= 0; u--) {
+                var curLv = _bloomLevels[u], nextLv = _bloomLevels[u + 1];
+                curLv.ac.globalCompositeOperation = "lighter";
+                curLv.ac.globalAlpha = _BLOOM_UPSAMPLE_WEIGHT;
+                curLv.ac.drawImage(nextLv.a, 0, 0, curLv.w, curLv.h);
+                curLv.ac.globalAlpha = 1;
+                curLv.ac.globalCompositeOperation = "source-over";
+            }
+            var baseAlpha = .08 + s * .22;
             _misoBloomCtx.clearRect(0, 0, w, h);
             _misoBloomCtx.globalCompositeOperation = "source-over";
-            for (var k = _BLOOM_NUM_LEVELS - 1; k >= 0; k--) {
-                var lvk = _bloomLevels[k];
-                _misoBloomCtx.globalAlpha = levelAlphas[k] * baseAlpha;
-                _misoBloomCtx.drawImage(lvk.a, 0, 0, w, h);
-            }
+            _misoBloomCtx.globalAlpha = baseAlpha;
+            _misoBloomCtx.drawImage(_bloomLevels[0].a, 0, 0, w, h);
             _misoBloomCtx.globalAlpha = 1;
+            var dt = performance.now() - t0;
+            _emaBloomMs = _emaBloomMs === 0 ? dt : _emaBloomMs * .85 + dt * .15;
         }
         if (_misoBloomRafId) cancelAnimationFrame(_misoBloomRafId);
         _bloomLoop();
