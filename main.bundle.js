@@ -21613,14 +21613,24 @@ window.polytrackModConfiguration = {
                         }
                         if (s.length > 0) {
                             if (null == a) throw new Error("Mesh is not loaded");
-                            const e = new THREE.InstancedMesh(a.geometry, a.material, s.length);
-                            e.matrixAutoUpdate = !1, e.matrixWorldAutoUpdate = !1, e.frustumCulled = !1, e.castShadow = h, 
-                            e.receiveShadow = !0;
-                            for (let t = 0; t < s.length; ++t) e.setMatrixAt(t, s[t].matrix);
-                            if (m.get(this, r, "f").scene.add(e), m.get(this, u, "f").push(e), null != c) {
-                                const n = new E.t(e, c);
-                                n.update(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), t), m.get(this, r, "f").scene.add(n), 
-                                m.get(this, u, "f").push(n);
+                            const renderChunkSize = 64;
+                            const renderChunkGroups = new Map;
+                            for (const chunkPart of s) {
+                                const chunkKey = Math.floor(chunkPart.x / renderChunkSize) + "|" + Math.floor(chunkPart.z / renderChunkSize);
+                                let chunkList = renderChunkGroups.get(chunkKey);
+                                null == chunkList && (chunkList = [], renderChunkGroups.set(chunkKey, chunkList)),
+                                chunkList.push(chunkPart);
+                            }
+                            for (const chunkParts of renderChunkGroups.values()) {
+                                const e = new THREE.InstancedMesh(a.geometry, a.material, chunkParts.length);
+                                e.matrixAutoUpdate = !1, e.matrixWorldAutoUpdate = !1, e.frustumCulled = !0, e.castShadow = h, 
+                                e.receiveShadow = !0;
+                                for (let t = 0; t < chunkParts.length; ++t) e.setMatrixAt(t, chunkParts[t].matrix);
+                                if (m.get(this, r, "f").scene.add(e), m.get(this, u, "f").push(e), null != c) {
+                                    const n = new E.t(e, c);
+                                    n.update(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), t), m.get(this, r, "f").scene.add(n), 
+                                    m.get(this, u, "f").push(n);
+                                }
                             }
                         }
                     }
