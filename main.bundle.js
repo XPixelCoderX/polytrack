@@ -227,11 +227,7 @@ window.polytrackModConfiguration = {
         var _bsStored = localStorage.getItem("_bloomStrength");
         if (_bsStored !== null) _misoBloomStrength = parseFloat(_bsStored);
     } catch (e) {}
-    var _misoVibrantStrength = 1.12;
-    try {
-        var _vsStored = localStorage.getItem("_vibrantStrength");
-        if (_vsStored !== null) _misoVibrantStrength = parseFloat(_vsStored);
-    } catch (e) {}
+    var _misoVibrantStrength = 1;
     var _bloomLowEnd = (navigator.hardwareConcurrency || 4) <= 4;
     var _bloomLevels = [];
     var _bloomThresh = null, _bloomThreshCtx = null;
@@ -483,34 +479,9 @@ window.polytrackModConfiguration = {
         _bloomLoop();
     }
     var _misoVibrantEnabled = false;
-    try {
-        _misoVibrantEnabled = localStorage.getItem("_vibrantColorsEnabled") === "true";
-    } catch (e) {}
     var _vibrantStyleEl = null;
-    function _applyVibrantStrength() {
-        if (!_vibrantStyleEl) {
-            _vibrantStyleEl = document.getElementById("_vibrant-colors-override");
-            if (!_vibrantStyleEl) {
-                _vibrantStyleEl = document.createElement("style");
-                _vibrantStyleEl.id = "_vibrant-colors-override";
-                document.head.appendChild(_vibrantStyleEl);
-            }
-        }
-        if (!_misoVibrantEnabled) {
-            _vibrantStyleEl.textContent = "";
-            return;
-        }
-        var sat = _misoVibrantStrength;
-        var con = 1 + (_misoVibrantStrength - 1) * .3;
-        _vibrantStyleEl.textContent = "#screen, #_miso-bloom-canvas { filter: saturate(" + sat.toFixed(3) + ") contrast(" + con.toFixed(3) + ") !important; }";
-    }
-    function _applyVibrantColorsSetting(enabled) {
-        _misoVibrantEnabled = enabled;
-        try {
-            localStorage.setItem("_vibrantColorsEnabled", enabled ? "true" : "false");
-        } catch (e) {}
-        _applyVibrantStrength();
-    }
+    function _applyVibrantStrength() { }
+    function _applyVibrantColorsSetting(enabled) {  }
     (function() {
         var el = document.createElement("style");
         el.id = "_miso-canvas-smooth";
@@ -1007,19 +978,35 @@ window.polytrackModConfiguration = {
         deleteButton.addEventListener("click", function() {
             var selectedEls = Array.from(container.querySelectorAll(".clip-menu-entry.selected"));
             if (!selectedEls.length) return;
-            if (selectedEls.length > 1) {
-                alert("Please select only one clip to delete.");
+            var items = selectedEls.map(function(el) {
+                var idx = Array.from(container.children).indexOf(el);
+                return { el: el, idx: idx, clip: clipData[idx] };
+            });
+            items.sort(function(a, b) {
+                return b.idx - a.idx;
+            });
+            var confirmMessage;
+            if (items.length === 1) {
+                var soloName = items[0].clip && items[0].clip.name ? items[0].clip.name : "this clip";
+                confirmMessage = 'Are you sure you want to delete "' + soloName + '"? This cannot be undone.';
+            } else {
+                confirmMessage = "Are you sure you want to delete these " + items.length + " clips? This cannot be undone.";
+            }
+            if (!confirm(confirmMessage)) {
                 return;
             }
-            var selected = selectedEls[0];
-            var idx = Array.from(container.children).indexOf(selected);
-            var clip = clipData[idx];
-            if (!localDeleteClip(clip.id)) {
-                alert("Failed to delete clip.");
-                return;
+            var failedNames = [];
+            items.forEach(function(item) {
+                if (!localDeleteClip(item.clip.id)) {
+                    failedNames.push(item.clip && item.clip.name ? item.clip.name : "clip");
+                    return;
+                }
+                clipData.splice(item.idx, 1);
+                item.el.remove();
+            });
+            if (failedNames.length) {
+                alert("Failed to delete: " + failedNames.join(", "));
             }
-            clipData.splice(idx, 1);
-            selected.remove();
         });
         var renameButton = document.createElement("button");
         renameButton.className = "button";
@@ -1353,6 +1340,7 @@ window.polytrackModConfiguration = {
         var focused = document.activeElement;
         if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable)) return;
         if (window.__misoClipKeyBindCapturing) return;
+        if (typeof window.__misoInRun === "function" && !window.__misoInRun()) return;
         if (e.code === getClipKeyBind() && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             createClip();
         }
@@ -3758,7 +3746,7 @@ window.polytrackModConfiguration = {
                         powerPreference: "high-performance",
                         canvas: canvas,
                         alpha: !0,
-                        preserveDrawingBuffer: true
+                        preserveDrawingBuffer: false   
                     };
                     try {
                         s.failIfMajorPerformanceCaveat = !0, i.set(this, k, new a.WebGLRenderer(s), "f"), 
@@ -3767,7 +3755,7 @@ window.polytrackModConfiguration = {
                         s.failIfMajorPerformanceCaveat = !1, i.set(this, k, new a.WebGLRenderer(s), "f"), 
                         i.set(this, E, !0, "f");
                     }
-                    i.get(this, k, "f").outputColorSpace = THREE.LinearSRGBColorSpace, i.get(this, k, "f").shadowMap.type = THREE.PCFShadowMap, 
+                    i.get(this, k, "f").outputColorSpace = THREE.LinearSRGBColorSpace, i.get(this, k, "f").shadowMap.type = THREE.PCFSoftShadowMap   
                     i.get(this, k, "f").debug.checkShaderErrors = !1, i.set(this, T, new THREE.Scene, "f"), 
                     i.get(this, y, "m", G).call(this), i.get(this, T, "f").add(new THREE.HemisphereLight(3891597, 11714755, 4.7)), 
                     document.addEventListener("fullscreenchange", () => {
@@ -3788,7 +3776,7 @@ window.polytrackModConfiguration = {
                     i.get(this, _, "f").dispose(), i.set(this, _, null, "f"), i.set(this, C, null, "f")), 
                     null == i.get(this, P, "f") && (i.set(this, P, new THREE.DirectionalLight(16777215, 4.7), "f"), 
                     i.get(this, P, "f").position.copy(i.get(this, I, "f")), i.get(this, T, "f").add(i.get(this, P, "f")), 
-                    i.get(this, T, "f").add(i.get(this, P, "f").target)), 1 == t || 2 == t) {
+                    i.get(this, P, "f").target.matrixAutoUpdate = !1, /* opt */ i.get(this, T, "f").add(i.get(this, P, "f").target)), 1 == t || 2 == t) {
                         if (!i.get(this, P, "f").castShadow) {
                             const e = i.get(this, y, "m", B).call(this, t);
                             i.get(this, P, "f").castShadow = !0, i.get(this, P, "f").shadow.camera.top = 10, 
@@ -3799,7 +3787,7 @@ window.polytrackModConfiguration = {
                             i.get(this, P, "f").shadow.intensity = .6;
                         }
                         i.get(this, P, "f").position.addVectors(i.get(this, M, "f").position, i.get(this, I, "f").multiplyScalar(12.5)), 
-                        i.get(this, P, "f").target.position.copy(i.get(this, M, "f").position), i.get(this, k, "f").shadowMap.enabled = !0;
+                        i.get(this, P, "f").target.position.copy(i.get(this, M, "f").position), i.get(this, P, "f").target.updateWorldMatrix(!1, !1), /* opt */ i.get(this, k, "f").shadowMap.enabled = !0;
                     } else i.get(this, P, "f").castShadow = !1, i.get(this, P, "f").shadow.map?.dispose(), 
                     i.get(this, P, "f").shadow.map = null, i.get(this, k, "f").shadowMap.enabled = !1; else {
                         if (null != i.get(this, _, "f") && i.get(this, C, "f") != t && (i.get(this, _, "f").remove(), 
@@ -3987,8 +3975,8 @@ window.polytrackModConfiguration = {
             }, O = function() {
                 if (null != i.get(this, _, "f")) if (i.get(this, M, "f") instanceof THREE.PerspectiveCamera) {
                     const e = i.get(this, M, "f").fov;
-                    i.get(this, M, "f").fov = 100, i.get(this, _, "f").updateFrustums(), i.get(this, M, "f").fov = e, 
-                    i.get(this, M, "f").updateProjectionMatrix();
+                    i.get(this, M, "f").fov = 90, i.get(this, _, "f").updateFrustums(), i.get(this, M, "f").fov = e, 
+                    i.get(this, M, "f").updateProjectionMatrix(); 
                 } else i.get(this, _, "f").updateFrustums();
             }, RenderManager.maxViewDistance = 1e4;
             const H = RenderManager;
@@ -21613,7 +21601,7 @@ window.polytrackModConfiguration = {
                         }
                         if (s.length > 0) {
                             if (null == a) throw new Error("Mesh is not loaded");
-                            const renderChunkSize = 64;
+                            const renderChunkSize = 32; 
                             const renderChunkGroups = new Map;
                             for (const chunkPart of s) {
                                 const chunkKey = Math.floor(chunkPart.x / renderChunkSize) + "|" + Math.floor(chunkPart.z / renderChunkSize);
@@ -21626,6 +21614,7 @@ window.polytrackModConfiguration = {
                                 e.matrixAutoUpdate = !1, e.matrixWorldAutoUpdate = !1, e.frustumCulled = !0, e.castShadow = h, 
                                 e.receiveShadow = !0;
                                 for (let t = 0; t < chunkParts.length; ++t) e.setMatrixAt(t, chunkParts[t].matrix);
+                                e.instanceMatrix.needsUpdate = !0; e.computeBoundingSphere();
                                 if (m.get(this, r, "f").scene.add(e), m.get(this, u, "f").push(e), null != c) {
                                     const n = new E.t(e, c);
                                     n.update(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), t), m.get(this, r, "f").scene.add(n), 
@@ -36936,41 +36925,6 @@ window.polytrackModConfiguration = {
                 _bloomRow.appendChild(_bloomSlider);
                 _bloomRow.appendChild(_bloomVal);
                 C.get(this, ks, "f").appendChild(_bloomRow);
-            })(), C.get(this, ms, "m", Gs).call(this, "Vibrant colors", [ {
-                title: "Off",
-                value: "false"
-            }, {
-                title: "On",
-                value: "true"
-            } ], R.A.VibrantColors, () => {
-                const _enabled = (C.get(this, Ps, "f").get(R.A.VibrantColors) ?? "false") === "true";
-                _applyVibrantColorsSetting(_enabled);
-            }), (() => {
-                const _vibRow = document.createElement("div");
-                _vibRow.className = "setting";
-                const _vibLabel = document.createElement("p");
-                _vibLabel.textContent = "Vibrant amount";
-                _vibRow.appendChild(_vibLabel);
-                const _vibSlider = document.createElement("input");
-                _vibSlider.type = "range";
-                _vibSlider.min = 1;
-                _vibSlider.max = 1.5;
-                _vibSlider.step = .01;
-                _vibSlider.value = _misoVibrantStrength;
-                const _vibVal = document.createElement("p");
-                _vibVal.style.cssText = "min-width:60px;flex-grow:0;flex-shrink:0;text-align:right";
-                _vibVal.textContent = Math.round((_misoVibrantStrength - 1) * 100) + "%";
-                _vibSlider.addEventListener("input", () => {
-                    _misoVibrantStrength = parseFloat(_vibSlider.value);
-                    _vibVal.textContent = Math.round((_misoVibrantStrength - 1) * 100) + "%";
-                    try {
-                        localStorage.setItem("_vibrantStrength", _misoVibrantStrength);
-                    } catch (e) {}
-                    _applyVibrantStrength();
-                });
-                _vibRow.appendChild(_vibSlider);
-                _vibRow.appendChild(_vibVal);
-                C.get(this, ks, "f").appendChild(_vibRow);
             })(), C.get(this, ms, "m", Ds).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Audio")), 
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Master volume"), R.A.MasterVolume), 
             C.get(this, ms, "m", Fs).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Sound effect volume"), R.A.SoundEffectVolume), 
@@ -39172,7 +39126,7 @@ window.polytrackModConfiguration = {
             t.href = "https://github.com/missonance", t.target = "_blank", t.textContent = "https://github.com/missonance", 
             C.get(this, Mc, "f").appendChild(t);
             const n = document.createElement("a");
-            n.href = "https://www.kodub.com", n.target = "_blank", n.textContent = "misotweaks 7.0.0, polytrack 0.6.0", 
+            n.href = "https://www.kodub.com", n.target = "_blank", n.textContent = "misotweaks 7.1.0, polytrack 0.6.0", 
             C.get(this, Mc, "f").appendChild(n);
         }, qc = function() {
             C.get(this, zc, "f")?.classList.add("hidden"), C.get(this, Nc, "f").classList.add("hidden");
@@ -43191,6 +43145,7 @@ window.polytrackModConfiguration = {
                                 }, null, null, () => {
                                     throw new Error("Multiplayer new session should never be called from the editor");
                                 });
+                                a.__misoIsRealRun = false;
                             });
                             P.PM(), P.tU();
                         } catch (i) {
@@ -43247,7 +43202,7 @@ window.polytrackModConfiguration = {
                             sessionId: e,
                             gameMode: t
                         });
-                    }), P.PM();
+                    }), Q.__misoIsRealRun = true, P.PM();
                 }));
             }, j = (e, t, n, i) => {
                 o.trigger(() => {
@@ -43283,6 +43238,7 @@ window.polytrackModConfiguration = {
                 });
             };
             let Q = new gh(p, v, A, m, y, b, E, w, S, h, l, e, n, r, x, t, !1, null, _, C, W, j, K, q), J = 0;
+            window.__misoInRun = () => Q instanceof ts && !!Q.__misoIsRealRun;
             h.setAnimationLoop(function(e) {
                 const t = Math.max(e - J, 0) / 1e3;
                 J = e, Q.update(t), k.update(t);
