@@ -3755,7 +3755,7 @@ window.polytrackModConfiguration = {
                         s.failIfMajorPerformanceCaveat = !1, i.set(this, k, new a.WebGLRenderer(s), "f"), 
                         i.set(this, E, !0, "f");
                     }
-                    i.get(this, k, "f").outputColorSpace = THREE.LinearSRGBColorSpace, i.get(this, k, "f").shadowMap.type = THREE.PCFSoftShadowMap   
+                    i.get(this, k, "f").outputColorSpace = THREE.LinearSRGBColorSpace, i.get(this, k, "f").shadowMap.type = THREE.PCFShadowMap   
                     i.get(this, k, "f").debug.checkShaderErrors = !1, i.set(this, T, new THREE.Scene, "f"), 
                     i.get(this, y, "m", G).call(this), i.get(this, T, "f").add(new THREE.HemisphereLight(3891597, 11714755, 4.7)), 
                     document.addEventListener("fullscreenchange", () => {
@@ -3776,7 +3776,7 @@ window.polytrackModConfiguration = {
                     i.get(this, _, "f").dispose(), i.set(this, _, null, "f"), i.set(this, C, null, "f")), 
                     null == i.get(this, P, "f") && (i.set(this, P, new THREE.DirectionalLight(16777215, 4.7), "f"), 
                     i.get(this, P, "f").position.copy(i.get(this, I, "f")), i.get(this, T, "f").add(i.get(this, P, "f")), 
-                    i.get(this, P, "f").target.matrixAutoUpdate = !1, /* opt */ i.get(this, T, "f").add(i.get(this, P, "f").target)), 1 == t || 2 == t) {
+                    i.get(this,T, "f").add(i.get(this, P, "f").target)), 1 == t || 2 == t) {
                         if (!i.get(this, P, "f").castShadow) {
                             const e = i.get(this, y, "m", B).call(this, t);
                             i.get(this, P, "f").castShadow = !0, i.get(this, P, "f").shadow.camera.top = 10, 
@@ -3787,7 +3787,7 @@ window.polytrackModConfiguration = {
                             i.get(this, P, "f").shadow.intensity = .6;
                         }
                         i.get(this, P, "f").position.addVectors(i.get(this, M, "f").position, i.get(this, I, "f").multiplyScalar(12.5)), 
-                        i.get(this, P, "f").target.position.copy(i.get(this, M, "f").position), i.get(this, P, "f").target.updateWorldMatrix(!1, !1), /* opt */ i.get(this, k, "f").shadowMap.enabled = !0;
+                        i.get(this, P, "f").target.position.copy(i.get(this, M, "f").position), i.get(this, k, "f").shadowMap.enabled = !0;
                     } else i.get(this, P, "f").castShadow = !1, i.get(this, P, "f").shadow.map?.dispose(), 
                     i.get(this, P, "f").shadow.map = null, i.get(this, k, "f").shadowMap.enabled = !1; else {
                         if (null != i.get(this, _, "f") && i.get(this, C, "f") != t && (i.get(this, _, "f").remove(), 
