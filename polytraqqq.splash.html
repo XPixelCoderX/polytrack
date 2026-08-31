@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0a0d; color: #fff; font-family: ui-monospace, monospace; overflow: hidden; }
+  .w { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  .logo { font-size: 52px; font-weight: 900; font-style: italic; text-shadow: 0 0 30px rgba(255,42,42,.5); }
+  .logo b { color: #ff2a2a; }
+  .sub { color: #ff2a2a; letter-spacing: 8px; font-size: 13px; font-weight: 800; }
+  .ver { color: #6a6a76; font-size: 12px; letter-spacing: 2px; }
+  .ver i { color: #ff2a2a; font-style: normal; margin: 0 4px; }
+  .ver u { color: #fff; text-decoration: none; font-weight: 700; }
+  .spin { width: 34px; height: 34px; border: 3px solid rgba(255,42,42,.2); border-top-color: #ff2a2a; border-radius: 50%; animation: s .8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .wrap { width: 420px; display: none; flex-direction: column; gap: 8px; }
+  .bar { height: 22px; background: #14141b; border: 1px solid rgba(255,42,42,.4); overflow: hidden; position: relative; }
+  .fill {
+    height: 100%; width: 0; transition: width .18s linear;
+    background-image: repeating-linear-gradient(115deg, #ff2a2a 0 14px, #96101a 14px 28px);
+    background-size: 28px 100%;
+    animation: stripe .55s linear infinite;
+    box-shadow: 0 0 18px rgba(255,42,42,.45);
+  }
+  @keyframes stripe { to { background-position: 28px 0; } }
+  .pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+  .meta { display: flex; justify-content: space-between; font-size: 11px; color: #6a6a76; letter-spacing: 1px; }
+  .msg { color: #9a9aa5; font-size: 14px; letter-spacing: 1px; }
+  @media (prefers-reduced-motion: reduce) {
+    .spin { animation: none; }
+    .fill { animation: none; }
+  }
+</style>
+
+<div class="w">
+  <div class="logo">PolyTr<b>a</b>qqq</div>
+  <div class="sub">CHEAT CLIENT</div>
+  <div class="ver" id="v">0.6.2</div>
+  <div class="spin" id="spin"></div>
+  <div class="wrap" id="bw">
+    <div class="bar">
+      <div class="fill" id="fl"></div>
+      <div class="pct" id="pc"></div>
+    </div>
+    <div class="meta">
+      <span id="mb"></span>
+      <span id="tot"></span>
+    </div>
+  </div>
+  <div class="msg" id="m">Checking for updates...</div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const mbs = (n) => (n / 1048576).toFixed(1) + " MB";
+
+  window.ptq = (d) => {
+    if (d.state === "local") {
+      $("v").innerHTML = d.game + " &middot; build <u>" + d.build + "</u>";
+      return;
+    }
+    if (d.state === "info") {
+      $("v").innerHTML = d.game + " &middot; build " + d.from + "<i>&rarr;</i><u>" + d.to + "</u>";
+      return;
+    }
+    if (d.state === "downloading") {
+      $("spin").style.display = "none";
+      $("bw").style.display = "flex";
+      const p = d.pct || 0;
+      $("fl").style.width = p + "%";
+      $("pc").textContent = p + "%";
+      if (d.got) {
+        $("mb").textContent = mbs(d.got);
+        $("tot").textContent = d.total ? mbs(d.total) : "";
+      }
+      $("m").textContent = "Downloading update";
+    } else if (d.state === "verifying") {
+      $("m").textContent = "Verifying download";
+    } else if (d.state === "restarting") {
+      $("m").textContent = "Restarting";
+    } else if (d.state === "uptodate") {
+      $("spin").style.display = "none";
+      if (d.build != null) $("v").innerHTML = d.game + " &middot; build <u>" + d.build + "</u>";
+      $("m").textContent = "Up to date";
+    } else if (d.state === "skipped") {
+      $("spin").style.display = "none";
+      if (d.build != null) $("v").innerHTML = d.game + " &middot; build <u>" + d.build + "</u> <i>DEV</i>";
+      $("m").textContent = "Update check skipped";
+    } else if (d.state === "error") {
+      $("spin").style.display = "none";
+      $("m").textContent = "Launching";
+    }
+  };
+</script>
