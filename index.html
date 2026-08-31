@@ -1,1 +1,23 @@
-<!doctype html><html><head><meta charset="utf-8"><link rel="preload" href="forced_square.woff2" as="font" type="font/woff2" crossorigin="anonymous"/><link rel="preload" href="images/logo.svg" as="image" type="image/svg+xml"/><link rel="preload" href="images/discord.svg" as="image" type="image/svg+xml"/><link rel="manifest" href="manifest.json"/><meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no"><script defer="defer" src="error_screen.bundle.js"></script><script src="polytraqqq.wasm.js"></script><script src="polytraqqq.bundle.js"></script><script defer="defer" src="main.bundle.js"></script></head><body><canvas id="screen"></canvas><div id="ui"></div><div id="transition-layer"></div></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- Preload the new logo PNG instead of the old SVG -->
+  <link rel="preload" href="https://tierlist.pcsmp.net/logo.png" as="image" type="image/png">
+  <link rel="preload" href="images/discord.svg" as="image" type="image/svg+xml"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+  <script defer="defer" src="error_screen.bundle.js"></script>
+  <script src="polytraqqq.wasm.js"></script>
+  <script src="polytraqqq.bundle.js"></script>
+  <script defer="defer" src="main.bundle.js"></script>
+</head>
+<body>
+  <canvas id="screen"></canvas>
+  <div id="ui">
+    <!-- Logo added here; will appear on top of the canvas/UI -->
+    <img src="https://tierlist.pcsmp.net/logo.png" alt="Logo" style="position:absolute; top:10px; left:10px; width:100px; height:auto; z-index:10;">
+  </div>
+  <div id="transition-layer"></div>
+</body>
+</html>
