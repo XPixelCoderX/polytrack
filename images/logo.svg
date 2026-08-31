@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200">
+  <style>
+    .wm { font-family: "Arial Black", "Helvetica Neue", Impact, sans-serif; font-weight: 900; font-style: italic; font-size: 128px; letter-spacing: -4px; }
+  </style>
+  <text class="wm" x="500" y="140" text-anchor="middle" fill="#eae6da">POLYTR<tspan fill="#e03024">A</tspan>QQQ</text>
+  <text x="500" y="178" text-anchor="middle" font-family="ui-monospace, monospace" font-size="26" letter-spacing="10" fill="#e03024">CHEAT CLIENT</text>
+</svg>
