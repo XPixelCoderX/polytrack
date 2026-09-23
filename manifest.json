@@ -18,8 +18,8 @@
 			"purpose": "any"
 		}
 	],
-	"background_color": "#28346a",
-	"theme_color": "#28346a",
+	"background_color": "#6d8bff",
+	"theme_color": "#6d8bff",
 	"start_url": "./index.html",
 	"orientation": "landscape",
 	"display_override": ["fullscreen", "standalone", "minimal-ui"],
