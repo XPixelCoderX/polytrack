@@ -1,0 +1,130 @@
+/*
+ * N2AB Client - module panel UI polish.
+ *
+ * Appended to the panel's shadow-DOM stylesheet by tools/build-n2ab-client.js.
+ * Everything is scoped to the shadow root, so it cannot leak into the game UI.
+ *
+ * Goal: a calmer, more readable panel. Softer surfaces, one consistent accent,
+ * clearer type hierarchy, tidier rows, and motion that respects reduced-motion.
+ */
+
+/* ---- design tokens -------------------------------------------------- */
+:host {
+  --n2-surface: #101014;
+  --n2-surface-2: #16161c;
+  --n2-line: rgba(255, 255, 255, 0.08);
+  --n2-line-strong: rgba(255, 255, 255, 0.14);
+  --n2-ink: #edeef2;
+  --n2-ink-dim: #9a9aa6;
+  --n2-radius: 14px;
+  --n2-ease: cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+/* ---- panels: flatter, softer, less neon ----------------------------- */
+.n2-panel-glow {
+  box-shadow:
+    0 24px 64px -16px rgba(0, 0, 0, 0.72),
+    0 0 0 1px var(--n2-line);
+}
+
+.bg-n2-panel\/95 {
+  background-color: color-mix(in srgb, var(--n2-surface) 94%, transparent);
+}
+
+.border-n2-panel-border\/30 {
+  border-color: var(--n2-line);
+}
+
+.rounded-xl { border-radius: var(--n2-radius); }
+.rounded-2xl { border-radius: calc(var(--n2-radius) + 4px); }
+
+/* ---- header: quieter gradient, stronger title ----------------------- */
+.n2-drag-handle {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--n2-surface-2) 96%, transparent);
+  border-bottom: 1px solid var(--n2-line);
+}
+
+.n2-drag-handle .text-\[17px\] {
+  letter-spacing: 0.01em;
+  font-weight: 600;
+}
+
+/* ---- rows: even rhythm + clear hover/active affordance -------------- */
+.group {
+  border-radius: 10px;
+  margin: 0 8px;
+  padding-left: 12px;
+  padding-right: 12px;
+  transition:
+    background-color 140ms var(--n2-ease),
+    color 140ms var(--n2-ease);
+}
+
+.group:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+/* ---- section labels -------------------------------------------------- */
+.uppercase.tracking-\[0\.25em\] {
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: var(--n2-ink-dim);
+}
+
+/* ---- inputs: consistent height, calmer focus ring ------------------- */
+input,
+textarea,
+select {
+  border-radius: 9px;
+  transition:
+    border-color 140ms var(--n2-ease),
+    background-color 140ms var(--n2-ease),
+    box-shadow 140ms var(--n2-ease);
+}
+
+input:focus,
+textarea:focus {
+  box-shadow: 0 0 0 3px rgba(255, 58, 58, 0.14);
+}
+
+/* ---- sliders: thinner track, no jumpy scale ------------------------- */
+input[type="range"].n2-slider { height: 4px; border-radius: 999px; }
+
+input[type="range"].n2-slider::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+  transition: box-shadow 140ms var(--n2-ease);
+}
+
+input[type="range"].n2-slider::-webkit-slider-thumb:hover {
+  transform: none;
+  box-shadow: 0 0 0 5px rgba(255, 58, 58, 0.16);
+}
+
+/* ---- scrollbar: slimmer and neutral --------------------------------- */
+.n2-scroll::-webkit-scrollbar { width: 8px; }
+
+.n2-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.n2-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: content-box;
+}
+
+.n2-scroll { scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+
+/* ---- toggles --------------------------------------------------------- */
+.rounded-full.relative { transition: background-color 160ms var(--n2-ease); }
+
+/* ---- motion ---------------------------------------------------------- */
+.animate-n2-pop-in { animation-duration: 160ms; animation-timing-function: var(--n2-ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-n2-pop-in { animation: none !important; }
+  * { transition-duration: 1ms !important; }
+}
